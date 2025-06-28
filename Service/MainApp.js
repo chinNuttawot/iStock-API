@@ -97,11 +97,15 @@ const sendNoti = (req, res) => {
 
 const Login = (req, res) => {
   const users = {
-    user1: "password1",
-    user2: "password2",
+    user1: "cGFzc3dvcmQx", //password1
+    user2: "cGFzc3dvcmQy", //password2,
   };
+
   const { username, password } = req.body;
-  if (!username || !password || users[username] !== password) {
+  // const encoded = Buffer.from(message, 'utf8').toString('base64');
+  const input_password = Buffer.from(password, "base64").toString("utf8");
+  const db_password = Buffer.from(users[username], "base64").toString("utf8");
+  if (!username || !password || db_password !== input_password) {
     res.status(401).send({ message: "username or password not found." }).end();
     return;
   }
