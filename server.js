@@ -1,7 +1,14 @@
 const express = require("express");
+const { Login } = require("./Service/Login");
+const { Logout } = require("./Service/Logout");
+const { Register } = require("./Service/Register");
+const { checkToken } = require("./middleware/checkToken");
+const { GetProfile } = require("./Service/Profile");
+
+require("dotenv").config();
 const app = express();
-const port = process.env.PORT || 188;
-const { TestAuth, sendNoti, Login, Logout } = require("./Service/MainApp");
+const port = process.env.PORT || 3000;
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.listen(port, () => {
@@ -9,9 +16,10 @@ app.listen(port, () => {
 });
 
 // post
-app.post("/api/sendnoti", sendNoti);
 app.post("/api/login", Login);
-app.post("/api/logout", Logout);
+app.post("/api/logout", checkToken, Logout);
+app.post("/api/register", Register);
 
-//get
-app.get("/api/testAuth", TestAuth);
+
+// get
+app.get("/api/profile", checkToken, GetProfile);
