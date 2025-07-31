@@ -11,6 +11,7 @@ const { getCardDetail } = require("./Service/CardDetail");
 const { CreateDocument } = require("./Service/CreateDocument");
 const { getWorkOrderStatus } = require("./Service/WorkOrderStatus");
 const { getWorkOrderNames } = require("./Service/WorkOrderNames");
+const { TestAPI } = require("./Service/Test");
 
 require("dotenv").config();
 const app = express();
@@ -28,6 +29,7 @@ app.post("/api/Logout", checkToken, Logout);
 app.post("/api/Register", Register);
 
 // get
+app.get("/", TestAPI);
 app.get("/api/Profile", checkToken, GetProfile);
 app.get("/api/Menus", checkToken, getMenus);
 app.get("/api/Dashboard", checkToken, getDashboard);
