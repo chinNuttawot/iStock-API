@@ -8,8 +8,6 @@ const { getDashboard } = require("../Dashboard");
 const { getCardList } = require("../Card");
 const { getCardDetail } = require("../CardDetail");
 const { CreateDocument } = require("../CreateDocument");
-const { getWorkOrderStatus } = require("../WorkOrderStatus");
-const { getWorkOrderNames } = require("../WorkOrderNames");
 const { checkToken } = require("../../middleware/checkToken");
 const { TestAPI } = require("../Test");
 const { deleteAccount } = require("../DeleteAccount");
@@ -32,7 +30,5 @@ APIs.get("/Dashboard", checkToken, getDashboard);
 APIs.get("/CardList", checkToken, getCardList);
 APIs.get("/CardDetailList", checkToken, getCardDetail);
 APIs.get("/CreateDocument", checkToken, CreateDocument);
-APIs.get("/WorkOrderStatus", checkToken, getWorkOrderStatus);
-APIs.get("/WorkOrderNames", checkToken, getWorkOrderNames);
 
 module.exports = APIs;
