@@ -10,7 +10,7 @@ const getWorkOrderNames = async (req, res) => {
     const result = await pool
       .request()
       .query(
-        "SELECT * FROM menus WHERE isActive = 1 ORDER BY sort_order, menu_id"
+        "SELECT * FROM [Menu iStock] WHERE isActive = 1 ORDER BY sort_order, menu_id"
       );
 
     const filter = result.recordset.map((v) => ({
