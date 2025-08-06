@@ -13,6 +13,7 @@ const { getWorkOrderNames } = require("../WorkOrderNames");
 const { checkToken } = require("../../middleware/checkToken");
 const { TestAPI } = require("../Test");
 const { deleteAccount } = require("../DeleteAccount");
+const { getOrderStatusList } = require("../OrderStatusList");
 const APIs = express.Router();
 
 // post
@@ -24,6 +25,7 @@ APIs.post("/DeleteAccount", deleteAccount);
 
 // get
 APIs.get("/", checkToken, TestAPI);
+APIs.get("/OrderStatusList", checkToken, getOrderStatusList);
 APIs.get("/Profile", checkToken, GetProfile);
 APIs.get("/Menus", checkToken, getMenus);
 APIs.get("/Dashboard", checkToken, getDashboard);

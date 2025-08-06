@@ -14,11 +14,10 @@ const getMenus = async (req, res) => {
           [IconType],
           [IconName],
           [ImagePath],
-          [SortOrder],
           [isActive]
-        FROM [Menu]
+        FROM [Menu iStock]
         WHERE [isActive] = 1
-        ORDER BY [SortOrder], [ID]
+        ORDER BY [ID]
       `);
 
     return responseSuccess(res, "Menu list fetched", result.recordset);
