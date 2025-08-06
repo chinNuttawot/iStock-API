@@ -27,18 +27,27 @@ const Register = async (req, res) => {
     const pool = await poolPromise;
 
     // ตรวจ username ซ้ำ
-    const check = await pool
-      .request()
-      .input("username", sql.VarChar, username)
-      .query("SELECT id FROM Users WHERE username = @username");
+    const check = await pool.request().input("username", sql.VarChar, username)
+      .query(`
+        SELECT [ID] 
+        FROM [User iStock] 
+        WHERE [User Name] = @username
+      `);
 
     if (check.recordset.length > 0) {
       return responseError(res, "Username already exists", 409);
     }
 
+    // 1. Get next ID (MAX(ID) + 1)
+    const result = await pool
+      .request()
+      .query(`SELECT ISNULL(MAX([ID]), 0) + 1 AS nextId FROM [User iStock]`);
+    const id = result.recordset[0].nextId;
+
     // บันทึกข้อมูล
     await pool
       .request()
+      .input("id", sql.Int, id)
       .input("username", sql.VarChar, username)
       .input("firstName", sql.NVarChar, firstName)
       .input("lastName", sql.NVarChar, lastName)
@@ -48,8 +57,23 @@ const Register = async (req, res) => {
       .input("email", sql.VarChar, email)
       .input("lineId", sql.VarChar, lineId)
       .input("phoneNumber", sql.VarChar, phoneNumber).query(`
-        INSERT INTO Users (username, firstName, lastName, department, branch, password, email, lineId, phoneNumber)
-        VALUES (@username, @firstName, @lastName, @department, @branch, @password, @email, @lineId, @phoneNumber)
+        INSERT INTO [User iStock] 
+        ([ID]
+        ,[User Name]
+        ,[Password]
+        ,[First Name]
+        ,[Last Name]
+        ,[Shortcut Dimension 1 Code]
+        ,[Shortcut Dimension 2 Code]
+        ,[E-Mail]
+        ,[Line ID]
+        ,[Phone No_]
+        ,[CurrentToken]
+        ,[LastLoginAT]
+        ,[CreateAt]
+        ,[Actived]
+        ,[ActivedAT])
+        VALUES (@id, @username, @password, @firstName, @lastName, @department, @branch, @email, @lineId, @phoneNumber, '', GETDATE(), GETDATE(), 1, GETDATE())
       `);
 
     return responseSuccess(

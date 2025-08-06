@@ -7,11 +7,20 @@ const {
 const getMenus = async (req, res) => {
   try {
     const pool = await poolPromise;
-    const result = await pool
-      .request()
-      .query(
-        "SELECT * FROM menus WHERE isActive = 1 ORDER BY sort_order, menu_id"
-      );
+    const result = await pool.request().query(`
+        SELECT 
+          [ID] AS menuId,
+          [Label],
+          [IconType],
+          [IconName],
+          [ImagePath],
+          [SortOrder],
+          [isActive]
+        FROM [Menu]
+        WHERE [isActive] = 1
+        ORDER BY [SortOrder], [ID]
+      `);
+
     return responseSuccess(res, "Menu list fetched", result.recordset);
   } catch (err) {
     console.error("Error fetching menus:", err);
