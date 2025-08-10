@@ -16,9 +16,6 @@ const Register = async (req, res) => {
     lineId,
     phoneNumber,
   } = req.body;
-
-  console.log("📦 Body Received:", req.body);
-
   if (!username || !password) {
     return responseError(res, "Username and password required", 400);
   }
@@ -56,7 +53,9 @@ const Register = async (req, res) => {
       .input("password", sql.VarChar, password)
       .input("email", sql.VarChar, email)
       .input("lineId", sql.VarChar, lineId)
-      .input("phoneNumber", sql.VarChar, phoneNumber).query(`
+      .input("phoneNumber", sql.VarChar, phoneNumber)
+      .input("syncAt", sql.DateTime, new Date("1753-01-01T00:00:00.000Z"))
+      .query(`
         INSERT INTO [User iStock] 
         ([ID]
         ,[User Name]
@@ -72,8 +71,27 @@ const Register = async (req, res) => {
         ,[LastLoginAT]
         ,[CreateAt]
         ,[Actived]
-        ,[ActivedAT])
-        VALUES (@id, @username, @password, @firstName, @lastName, @department, @branch, @email, @lineId, @phoneNumber, '', GETDATE(), GETDATE(), 1, GETDATE())
+        ,[ActivedAT]
+        ,[Sync]
+        ,[SyncAt])
+        VALUES 
+          (@id, 
+          @username, 
+          @password, 
+          @firstName, 
+          @lastName, 
+          @department, 
+          @branch, 
+          @email, 
+          @lineId, 
+          @phoneNumber, 
+          '', 
+          GETDATE(), 
+          GETDATE(), 
+          1, 
+          GETDATE(),
+          0,
+          @syncAt)
       `);
 
     return responseSuccess(

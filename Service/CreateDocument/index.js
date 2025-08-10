@@ -5,15 +5,23 @@ const {
 
 const CreateDocument = async (req, res) => {
   try {
-    const { menuType } = req.body; // ✅ แก้ตรงนี้
-
-    if (!menuType) {
-      return responseError(res, "menu type is required");
+    const { menuId } = req.body; // ✅ แก้ตรงนี้
+    if (menuId === undefined) {
+      return responseError(res, "menuId is required", 400);
     }
 
-    // 📝 สร้าง docId ตาม timestamp หรือ logic ที่เหมาะสม
+    if (typeof menuId !== "number" || Number.isNaN(menuId)) {
+      return responseError(res, "menuId must be a number", 400);
+    }
+
+    if (menuId >= 4) {
+      return responseError(res, "Menu not found", 404);
+    }
+
+    const typeMenu =
+      menuId === 0 ? "MI" : menuId === 1 ? "MO" : menuId === 2 ? "MT" : "MC";
     const now = new Date();
-    const docId = `GRI${now.getFullYear().toString().slice(2)}${(
+    const docId = `${typeMenu}-${now.getFullYear().toString().slice(2)}${(
       now.getMonth() + 1
     )
       .toString()
@@ -24,7 +32,7 @@ const CreateDocument = async (req, res) => {
 
     const newDocument = {
       docId,
-      menuType,
+      menuId,
       createdAt: now.toISOString(),
       status: "Open",
       products: [],

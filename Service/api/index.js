@@ -12,6 +12,8 @@ const { checkToken } = require("../../middleware/checkToken");
 const { TestAPI } = require("../Test");
 const { deleteAccount } = require("../DeleteAccount");
 const { getOrderStatusList } = require("../OrderStatusList");
+const { getBinCodesByLocation } = require("../BinCodesByLocation");
+const { getLocations } = require("../Locations");
 const APIs = express.Router();
 
 // post
@@ -23,6 +25,8 @@ APIs.post("/DeleteAccount", deleteAccount);
 
 // get
 APIs.get("/", checkToken, TestAPI);
+APIs.get("/BinCodesByLocation", checkToken, getBinCodesByLocation);
+APIs.get("/Locations", checkToken, getLocations);
 APIs.get("/OrderStatusList", checkToken, getOrderStatusList);
 APIs.get("/Profile", checkToken, GetProfile);
 APIs.get("/Menus", checkToken, getMenus);

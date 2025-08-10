@@ -1,12 +1,14 @@
 const { sql, poolPromise } = require("../../config/db");
-const { responseSuccess, responseError } = require("../../utils/responseHelper");
+const {
+  responseSuccess,
+  responseError,
+} = require("../../utils/responseHelper");
 
 const getOrderStatusList = async (req, res) => {
   try {
     const pool = await poolPromise;
     const result = await pool.request().query(`
       SELECT 
-        [ID], 
         [StatusKey] AS [key], 
         [StatusValue] AS [value]
       FROM [Order Status iStock]
