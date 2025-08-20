@@ -5,6 +5,7 @@ const {
   responseSuccess,
   responseError,
 } = require("../../utils/responseHelper");
+const { getByUserNAV } = require("../NAV");
 
 const Login = async (req, res) => {
   const { username, password } = req.body;
@@ -34,21 +35,7 @@ const Login = async (req, res) => {
     // 1.1) ไม่พบใน DB ⇒ ลอง auth กับ NAV
     if (result.recordset.length === 0) {
       try {
-        const basic = Buffer.from(`${"Pmc"}:${"Pmc@1234"}`).toString("base64");
-
-        const _res = await axios.get(process.env.NAV_URL, {
-          headers: {
-            Authorization: `Basic ${basic}`,
-            "Content-Type": "application/json",
-          },
-          timeout: 10000,
-        });
-        const _value = _res.data.value || [];
-
-        if (!_value || _value.length === 0) {
-          return responseError(res, "Invalid NAV response", 502);
-        }
-        const navUser = _value.find((u) => u.userName === username) || null;
+        const navUser = await getByUserNAV(username);
 
         if (!navUser) {
           return responseError(_value, "User not found", 401);
@@ -59,10 +46,14 @@ const Login = async (req, res) => {
         }
 
         // // ผ่าน ⇒ ออก token เลย (ไม่บันทึก DB เพราะไม่มี record)
-        const jwtToken = jwt.sign({ username }, process.env.JWT_SECRET, {
-          algorithm: "HS256",
-          expiresIn: "5h",
-        });
+        const jwtToken = jwt.sign(
+          { username, from: "NAV" },
+          process.env.JWT_SECRET,
+          {
+            algorithm: "HS256",
+            expiresIn: "5h",
+          }
+        );
 
         return responseSuccess(res, "Login successful (NAV)", {
           token: jwtToken,
@@ -103,10 +94,14 @@ const Login = async (req, res) => {
     }
 
     // ผ่าน ⇒ ออก token และอัปเดต DB
-    const jwtToken = jwt.sign({ username }, process.env.JWT_SECRET, {
-      algorithm: "HS256",
-      expiresIn: "5h",
-    });
+    const jwtToken = jwt.sign(
+      { username, from: "DB" },
+      process.env.JWT_SECRET,
+      {
+        algorithm: "HS256",
+        expiresIn: "5h",
+      }
+    );
 
     await pool
       .request()

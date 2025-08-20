@@ -4,6 +4,7 @@ const {
   responseSuccess,
   responseError,
 } = require("../../utils/responseHelper");
+const { getByUserNAV } = require("../NAV");
 
 const GetProfile = async (req, res) => {
   const authHeader = req.headers.authorization;
@@ -28,9 +29,12 @@ const GetProfile = async (req, res) => {
   }
 
   try {
-    const pool = await poolPromise;
-    const result = await pool.request().input("username", sql.VarChar, username)
-      .query(`
+    let user;
+    if (decoded.from === "DB") {
+      const pool = await poolPromise;
+      const result = await pool
+        .request()
+        .input("username", sql.VarChar, username).query(`
         SELECT 
           [ID] AS id,
           [User Name] AS username,
@@ -46,11 +50,20 @@ const GetProfile = async (req, res) => {
         WHERE [User Name] = @username
       `);
 
-    if (result.recordset.length === 0) {
-      return responseError(res, "User not found", 404);
+      if (result.recordset.length === 0) {
+        return responseError(res, "User not found", 404);
+      }
+
+      user = result.recordset[0];
+    } else {
+      const navUser = await getByUserNAV(username);
+      const { password, ...safeUser } = navUser;
+      if (!navUser) {
+        return responseError(_value, "User not found from NAV", 401);
+      }
+      user = safeUser;
     }
 
-    const user = result.recordset[0];
     return responseSuccess(res, "Profile loaded", user);
   } catch (err) {
     console.error("GetProfile error:", err);

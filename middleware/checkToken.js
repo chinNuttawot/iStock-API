@@ -20,19 +20,20 @@ const checkToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const pool = await poolPromise;
 
-    // ✅ Correct Table & Column Names
-    const result = await pool
-      .request()
-      .input("username", sql.VarChar, decoded.username).query(`
+    if (decoded.from === "DB") {
+      // ✅ Correct Table & Column Names
+      const result = await pool
+        .request()
+        .input("username", sql.VarChar, decoded.username).query(`
         SELECT [CurrentToken] FROM [User iStock] WHERE [User Name] = @username
       `);
 
-    const userToken = result.recordset[0]?.CurrentToken;
+      const userToken = result.recordset[0]?.CurrentToken;
 
-    if (userToken !== token) {
-      return res.status(401).json({ message: "Session expired" });
+      if (userToken !== token) {
+        return res.status(401).json({ message: "Session expired" });
+      }
     }
-
     req.user = decoded;
     next();
   } catch (err) {
