@@ -52,7 +52,7 @@ const getCardList = async (req, res) => {
         { label: "วันที่ส่งสินค้า", value: formatDate(item.shipmentDate) },
         {
           label: "ส่งจากคลัง",
-          value: `${item.transferFromCode} - Head Office`,
+          value: `${item.transferFromCode}`,
         },
         { label: "E-Shop No.", value: item.eShopNo || "-" },
         { label: "หมายเหตุ", value: item.remark || "-" },
