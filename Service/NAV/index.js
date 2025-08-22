@@ -16,6 +16,7 @@ const RETENTION_DAYS = parseInt(process.env.NAV_RETENTION_DAYS || "1", 10);
 
 // ใช้ ENV แทนที่จะฮาร์ดโค้ด
 const NAV_URL = process.env.NAV_URL;
+const NAV_URL_TRANSFER_ORDER_WS = process.env.NAV_URL_TRANSFER_ORDER_WS;
 const NAV_USER = process.env.NAV_USER || "Pmc";
 const NAV_PASS = process.env.NAV_PASS || "Pmc@1234";
 
@@ -27,6 +28,11 @@ const httpsAgent =
 
 // ====== HELPERS ======
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const headersNAV = {
+  Authorization: getAuthHeader(NAV_USER, NAV_PASS),
+  "Content-Type": "application/json",
+};
 
 async function initStorage() {
   await storage.init({
@@ -49,22 +55,42 @@ async function getByUserNAV(username) {
   return latest.data.find((u) => u.userName === username) || null;
 }
 
+const getCardListNAV = async (item) => {
+  const { menuId, branchCode } = item;
+  if (!NAV_URL) {
+    throw new Error("ENV NAV_URL ไม่ถูกตั้งค่า");
+  }
+  let res;
+  try {
+    //สแกนรับ
+    if (menuId === 0) {
+      res = await axios.get(
+        `${NAV_URL_TRANSFER_ORDER_WS}?$filter=branchCode eq '${branchCode}'`,
+        {
+          headers: headersNAV,
+          timeout: 10000,
+          httpsAgent,
+        }
+      );
+    }
+
+    const data = res.data?.value ?? res.data ?? [];
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    throw new Error("Error get CardList NAV");
+  }
+};
 // ดึง NAV พร้อมรีทราย
 async function getUserNAV() {
   if (!NAV_URL) {
     throw new Error("ENV NAV_URL ไม่ถูกตั้งค่า");
   }
 
-  const headers = {
-    Authorization: getAuthHeader(NAV_USER, NAV_PASS),
-    "Content-Type": "application/json",
-  };
-
   let lastErr;
   for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
     try {
       const res = await axios.get(NAV_URL, {
-        headers,
+        headers: headersNAV,
         timeout: 10000,
         httpsAgent,
         // proxy: { host, port } // ถ้าต้องการ
@@ -177,4 +203,4 @@ function scheduleJob() {
 })();
 
 // (ทางเลือก) export เผื่อเรียกที่อื่น
-module.exports = { getUserNAV, runJob, getByUserNAV };
+module.exports = { getUserNAV, runJob, getByUserNAV, getCardListNAV };
