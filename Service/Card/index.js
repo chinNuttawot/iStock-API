@@ -45,7 +45,7 @@ const getCardList = async (req, res) => {
     const navData = await getCardListNAV({ menuId, branchCode });
     const formatted = navData.map((item, idx) => ({
       id: String(idx + 1),
-      docId: item.docNo,
+      docNo: item.docNo,
       menuType: getMenuType(menuId),
       status: item.status,
       details: [
