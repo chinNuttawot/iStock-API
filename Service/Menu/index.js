@@ -14,7 +14,8 @@ const getMenus = async (req, res) => {
           [IconType],
           [IconName],
           [ImagePath],
-          [isActive]
+          [isActive],
+          [nameMenu]
         FROM [Menu iStock]
         WHERE [isActive] = 1
         ORDER BY [ID]
