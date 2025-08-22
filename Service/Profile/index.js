@@ -54,7 +54,10 @@ const GetProfile = async (req, res) => {
         return responseError(res, "User not found", 404);
       }
 
-      user = result.recordset[0];
+      user = {
+        ...result.recordset[0],
+        fullName: `${result.recordset[0].firstName} ${result.recordset[0].lastName}`,
+      };
     } else {
       const navUser = await getByUserNAV(username);
       const { password, ...safeUser } = navUser;
