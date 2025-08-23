@@ -54,7 +54,13 @@ const getCardDetail = async (req, res) => {
       details: [
         { label: "รุ่น", value: "" },
         { label: "หมายเหตุ", value: item.description ?? "" },
-        { label: "คงเหลือ", value: item.qtyReceived - item.qtyShipped },
+        {
+          label: "คงเหลือ",
+          value:
+            item.qtyReceived === 0
+              ? item.qtyShipped
+              : item.qtyReceived - item.qtyShipped,
+        },
       ],
       image: "",
     }));
