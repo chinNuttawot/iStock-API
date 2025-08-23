@@ -52,13 +52,11 @@ const getCardDetail = async (req, res) => {
       qtyShipped: item.qtyShipped,
       isDelete: false,
       details: [
+        { label: "รหัสแบบ", value: item.itemNo ?? "-" },
         { label: "หมายเหตุ", value: item.description ?? "" },
         {
-          label: "คงเหลือ",
-          value:
-            item.qtyReceived === 0
-              ? item.qtyShipped
-              : item.qtyReceived - item.qtyShipped,
+          label: "จำนวนที่รับแล้ว",
+          value: `${item.qtyReceived} / ${item.qtyShipped}`,
         },
       ],
       image: null,
