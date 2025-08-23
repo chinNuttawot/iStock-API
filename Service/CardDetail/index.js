@@ -47,7 +47,7 @@ const getCardDetail = async (req, res) => {
       id: String(idx + 1),
       docNo: item.docNo,
       menuType: getMenuType(menuId),
-      model: "",
+      model: item.itemNo,
       qtyReceived: item.qtyReceived,
       qtyShipped: item.qtyShipped,
       isDelete: false,
@@ -55,7 +55,7 @@ const getCardDetail = async (req, res) => {
         { label: "รหัสแบบ", value: item.itemNo ?? "-" },
         { label: "หมายเหตุ", value: item.description ?? "" },
         {
-          label: "จำนวนที่รับแล้ว",
+          label: "จำนวนที่รับ",
           value: `${item.qtyReceived} / ${item.qtyShipped}`,
         },
       ],
