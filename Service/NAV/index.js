@@ -17,6 +17,8 @@ const RETENTION_DAYS = parseInt(process.env.NAV_RETENTION_DAYS || "1", 10);
 // ใช้ ENV แทนที่จะฮาร์ดโค้ด
 const NAV_URL = process.env.NAV_URL;
 const NAV_URL_TRANSFER_ORDER_WS = process.env.NAV_URL_TRANSFER_ORDER_WS;
+const NAV_URL_TRANSFER_ORDER_DETAIL_WS =
+  process.env.NAV_URL_TRANSFER_ORDER_DETAIL_WS;
 const NAV_USER = process.env.NAV_USER || "Pmc";
 const NAV_PASS = process.env.NAV_PASS || "Pmc@1234";
 
@@ -55,10 +57,36 @@ async function getByUserNAV(username) {
   return latest.data.find((u) => u.userName === username) || null;
 }
 
+const getCardDetailListNAV = async (item) => {
+  const { menuId, docNo } = item;
+  if (!NAV_URL_TRANSFER_ORDER_DETAIL_WS) {
+    throw new Error("ENV NAV_URL_TRANSFER_ORDER_DETAIL_WS ไม่ถูกตั้งค่า");
+  }
+  let res;
+  try {
+    //สแกนรับ
+    if (menuId === 0) {
+      res = await axios.get(
+        `${NAV_URL_TRANSFER_ORDER_DETAIL_WS}?$filter=docNo eq '${docNo}'`,
+        {
+          headers: headersNAV,
+          timeout: 10000,
+          httpsAgent,
+        }
+      );
+    }
+
+    const data = res.data?.value ?? res.data ?? [];
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    throw new Error("Error get CardList NAV");
+  }
+};
+
 const getCardListNAV = async (item) => {
   const { menuId, branchCode } = item;
-  if (!NAV_URL) {
-    throw new Error("ENV NAV_URL ไม่ถูกตั้งค่า");
+  if (!NAV_URL_TRANSFER_ORDER_WS) {
+    throw new Error("ENV NAV_URL_TRANSFER_ORDER_WS ไม่ถูกตั้งค่า");
   }
   let res;
   try {
@@ -203,4 +231,10 @@ function scheduleJob() {
 })();
 
 // (ทางเลือก) export เผื่อเรียกที่อื่น
-module.exports = { getUserNAV, runJob, getByUserNAV, getCardListNAV };
+module.exports = {
+  getUserNAV,
+  runJob,
+  getByUserNAV,
+  getCardListNAV,
+  getCardDetailListNAV,
+};

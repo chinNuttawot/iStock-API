@@ -3,8 +3,8 @@ const productData = [
     id: "1",
     docId: "5OTH01475",
     model: "VR001",
-    receivedQty: null,
-    totalQty: null,
+    qtyReceived: null,
+    qtyShipped: null,
     isDelete: false,
     details: [
       { label: "รุ่น", value: "VR000" },
@@ -17,8 +17,8 @@ const productData = [
     id: "2",
     docId: "5OTH01475",
     model: "VR001",
-    receivedQty: null,
-    totalQty: null,
+    qtyReceived: null,
+    qtyShipped: null,
     isDelete: false,
     details: [
       { label: "รุ่น", value: "VR001" },
@@ -31,8 +31,8 @@ const productData = [
     id: "3",
     docId: "5OTH01475",
     model: "VR002",
-    receivedQty: null,
-    totalQty: null,
+    qtyReceived: null,
+    qtyShipped: null,
     isDelete: false,
     details: [
       { label: "รุ่น", value: "VR002" },
