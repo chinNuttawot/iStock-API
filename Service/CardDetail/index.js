@@ -62,7 +62,7 @@ const getCardDetail = async (req, res) => {
               : item.qtyReceived - item.qtyShipped,
         },
       ],
-      image: "",
+      image: null,
     }));
 
     return responseSuccess(res, "Card Detail list fetched", formatted);
