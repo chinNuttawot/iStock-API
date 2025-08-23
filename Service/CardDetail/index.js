@@ -48,8 +48,8 @@ const getCardDetail = async (req, res) => {
       docNo: item.docNo,
       menuType: getMenuType(menuId),
       model: "",
-      qtyReceived: item.qtyReceived,
-      qtyShipped: item.qtyShipped,
+      qtyReceived: null,
+      qtyShipped: null,
       isDelete: false,
       details: [
         { label: "รุ่น", value: "" },
