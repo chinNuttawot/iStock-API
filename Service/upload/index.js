@@ -8,9 +8,21 @@ const {
   responseError,
 } = require("../../utils/responseHelper");
 
+const DEBUG = process.env.DEBUG_UPLOAD === "1";
+const ALLOW_IMG = Array.isArray(config.ALLOWED_IMAGE_MIME)
+  ? config.ALLOWED_IMAGE_MIME
+  : [];
+const ALLOW_FILE = Array.isArray(config.ALLOWED_FILE_MIME)
+  ? config.ALLOWED_FILE_MIME
+  : [];
+
+/** util: log เฉพาะตอนเปิด DEBUG_UPLOAD=1 */
+function dlog(...args) {
+  if (DEBUG) console.log("[upload]", ...args);
+}
+
 /** ตรวจ mime และส่ง error ถ้าไม่ผ่าน */
 function assertAllowed(mime, allowedList) {
-  // validateMime(allowed, mimetype)  <-- ตามที่ utils/file นิยามไว้
   if (!validateMime(allowedList, mime)) {
     const e = new Error(`ไม่รองรับชนิดไฟล์: ${mime}`);
     e.statusCode = 400;
@@ -24,8 +36,8 @@ function getHealth(req, res) {
     port: config.PORT,
     uploadDir: path.relative(process.cwd(), config.UPLOAD_DIR),
     maxFileSizeMB: config.MAX_FILE_SIZE_MB,
-    allowedImageMimes: config.ALLOWED_IMAGE_MIME,
-    allowedFileMimes: config.ALLOWED_FILE_MIME,
+    allowedImageMimes: ALLOW_IMG,
+    allowedFileMimes: ALLOW_FILE,
   });
 }
 
@@ -33,16 +45,26 @@ function getHealth(req, res) {
 function uploadImage(req, res) {
   try {
     if (!req.file) {
+      dlog("req.file is empty");
       return responseError(res, 400, "ไม่พบไฟล์");
     }
-    assertAllowed(req.file.mimetype, config.ALLOWED_IMAGE_MIME);
+    dlog("image:", {
+      name: req.file.originalname,
+      type: req.file.mimetype,
+      size: req.file.size,
+    });
+
+    assertAllowed(req.file.mimetype, ALLOW_IMG);
     const file = buildFileResponse(req, req.file.filename, req.file);
+
+    // ใช้ 200 ผ่าน helper เดิม (ต้องการ 201 ค่อยเปลี่ยน helper ให้รับ status ได้)
     return responseSuccess(res, "upload Image Success", {
       type: "image",
       file,
     });
   } catch (e) {
     const status = e.statusCode || 500;
+    dlog("image error:", e.message);
     return responseError(res, status, "อัปโหลดรูปภาพไม่สำเร็จ", e.message);
   }
 }
@@ -51,16 +73,25 @@ function uploadImage(req, res) {
 function uploadFile(req, res) {
   try {
     if (!req.file) {
+      dlog("req.file is empty");
       return responseError(res, 400, "ไม่พบไฟล์");
     }
-    assertAllowed(req.file.mimetype, config.ALLOWED_FILE_MIME);
+    dlog("file:", {
+      name: req.file.originalname,
+      type: req.file.mimetype,
+      size: req.file.size,
+    });
+
+    assertAllowed(req.file.mimetype, ALLOW_FILE);
     const file = buildFileResponse(req, req.file.filename, req.file);
+
     return responseSuccess(res, "upload File Success", {
       type: "file",
       file,
     });
   } catch (e) {
     const status = e.statusCode || 500;
+    dlog("file error:", e.message);
     return responseError(res, status, "อัปโหลดไฟล์ไม่สำเร็จ", e.message);
   }
 }
@@ -70,25 +101,26 @@ function uploadMultiple(req, res) {
   try {
     const files = req.files || [];
     if (files.length === 0) {
+      dlog("req.files is empty");
       return responseError(res, 400, "ไม่พบไฟล์");
     }
 
-    // ตรวจ mime ของแต่ละไฟล์
     for (const f of files) {
       const isImage = f.mimetype.startsWith("image/");
-      const allowed = isImage
-        ? config.ALLOWED_IMAGE_MIME
-        : config.ALLOWED_FILE_MIME;
+      const allowed = isImage ? ALLOW_IMG : ALLOW_FILE;
       assertAllowed(f.mimetype, allowed);
     }
 
     const items = files.map((f) => buildFileResponse(req, f.filename, f));
+    dlog("multi count:", items.length);
+
     return responseSuccess(res, "upload Multi Success", {
       count: items.length,
       files: items,
     });
   } catch (e) {
     const status = e.statusCode || 500;
+    dlog("multi error:", e.message);
     return responseError(res, status, "อัปโหลดหลายไฟล์ไม่สำเร็จ", e.message);
   }
 }
@@ -100,7 +132,7 @@ function listUploadedFiles(req, res) {
     const host = `${req.protocol}://${req.get("host")}`;
     const files = names.map((name) => ({
       filename: name,
-      url: `${host}/files/${name}`,
+      url: `${host}/files/${name}`, // ทาง A: public static
     }));
     return responseSuccess(res, "รายการไฟล์", { total: files.length, files });
   } catch (e) {
