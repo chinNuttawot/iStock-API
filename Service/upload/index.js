@@ -44,9 +44,20 @@ function getHealth(req, res) {
 /** POST /upload/image */
 function uploadImage(req, res) {
   try {
+    const {
+      keyRef1 = null,
+      keyRef2 = null,
+      keyRef3 = null,
+      remark = null,
+    } = req.body;
+
+    if (!keyRef1) {
+      return responseError(res, "keyRef1 not found", 400);
+    }
+
     if (!req.file) {
       dlog("req.file is empty");
-      return responseError(res, 400, "ไม่พบไฟล์");
+      return responseError(res, "empty file", 400);
     }
     dlog("image:", {
       name: req.file.originalname,
@@ -65,16 +76,27 @@ function uploadImage(req, res) {
   } catch (e) {
     const status = e.statusCode || 500;
     dlog("image error:", e.message);
-    return responseError(res, status, "อัปโหลดรูปภาพไม่สำเร็จ", e.message);
+    return responseError(res, "อัปโหลดรูปภาพไม่สำเร็จ", status);
   }
 }
 
 /** POST /upload/file */
 function uploadFile(req, res) {
   try {
+    const {
+      keyRef1 = null,
+      keyRef2 = null,
+      keyRef3 = null,
+      remark = null,
+    } = req.body;
+
+    if (!keyRef1) {
+      return responseError(res, "keyRef1 not found", 400);
+    }
+
     if (!req.file) {
       dlog("req.file is empty");
-      return responseError(res, 400, "ไม่พบไฟล์");
+      return responseError(res, "ไม่พบไฟล์", 400);
     }
     dlog("file:", {
       name: req.file.originalname,
@@ -92,17 +114,28 @@ function uploadFile(req, res) {
   } catch (e) {
     const status = e.statusCode || 500;
     dlog("file error:", e.message);
-    return responseError(res, status, "อัปโหลดไฟล์ไม่สำเร็จ", e.message);
+    return responseError(res, "อัปโหลดไฟล์ไม่สำเร็จ", status);
   }
 }
 
 /** POST /upload/multi */
 function uploadMultiple(req, res) {
   try {
+    const {
+      keyRef1 = null,
+      keyRef2 = null,
+      keyRef3 = null,
+      remark = null,
+    } = req.body;
+
+    if (!keyRef1) {
+      return responseError(res, "keyRef1 not found", 400);
+    }
+
     const files = req.files || [];
     if (files.length === 0) {
       dlog("req.files is empty");
-      return responseError(res, 400, "ไม่พบไฟล์");
+      return responseError(res, "ไม่พบไฟล์", 400);
     }
 
     for (const f of files) {
@@ -121,7 +154,7 @@ function uploadMultiple(req, res) {
   } catch (e) {
     const status = e.statusCode || 500;
     dlog("multi error:", e.message);
-    return responseError(res, status, "อัปโหลดหลายไฟล์ไม่สำเร็จ", e.message);
+    return responseError(res, "อัปโหลดหลายไฟล์ไม่สำเร็จ", status);
   }
 }
 
@@ -136,7 +169,7 @@ function listUploadedFiles(req, res) {
     }));
     return responseSuccess(res, "รายการไฟล์", { total: files.length, files });
   } catch (e) {
-    return responseError(res, 500, "ไม่สามารถอ่านรายการไฟล์", e.message);
+    return responseError(res, "ไม่สามารถอ่านรายการไฟล์", 500);
   }
 }
 
@@ -146,11 +179,11 @@ function deleteFile(req, res) {
     const target = safeJoin(config.UPLOAD_DIR, req.params.name);
     const ok = safeUnlink(target);
     if (!ok) {
-      return responseError(res, 404, "ไม่พบไฟล์");
+      return responseError(res, "ไม่พบไฟล์", 404);
     }
     return responseSuccess(res, "ลบไฟล์แล้ว");
   } catch (e) {
-    return responseError(res, 500, "ลบไฟล์ไม่สำเร็จ", e.message);
+    return responseError(res, "ลบไฟล์ไม่สำเร็จ", 500);
   }
 }
 
