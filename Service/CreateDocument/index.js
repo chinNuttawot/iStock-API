@@ -1,27 +1,36 @@
+const { poolPromise } = require("../../config/db");
 const {
   responseSuccess,
   responseError,
 } = require("../../utils/responseHelper");
 
+const getMenuName = async (menuId) => {
+  const pool = await poolPromise;
+  const { recordset } = await pool.request().query(`
+      SELECT [nameMenu]
+      FROM [Menu iStock]
+      WHERE [ID] = ${menuId};
+    `);
+  return recordset[0].nameMenu || "";
+};
+
 const CreateDocument = async (req, res) => {
   try {
-    const { menuId } = req.body; // ✅ แก้ตรงนี้
+    let { menuId } = req.query;
     if (menuId === undefined) {
       return responseError(res, "menuId is required", 400);
     }
-
-    if (typeof menuId !== "number" || Number.isNaN(menuId)) {
+    menuId = Number(menuId);
+    if (Number.isNaN(menuId)) {
       return responseError(res, "menuId must be a number", 400);
     }
-
     if (menuId >= 4) {
       return responseError(res, "Menu not found", 404);
     }
-
     const typeMenu =
       menuId === 0 ? "MI" : menuId === 1 ? "MO" : menuId === 2 ? "MT" : "MC";
     const now = new Date();
-    const docId = `${typeMenu}-${now.getFullYear().toString().slice(2)}${(
+    const docNo = `${typeMenu}-${now.getFullYear().toString().slice(2)}${(
       now.getMonth() + 1
     )
       .toString()
@@ -29,11 +38,17 @@ const CreateDocument = async (req, res) => {
       .getDate()
       .toString()
       .padStart(2, "0")}-${Math.floor(Math.random() * 9000 + 1000)}`;
-
+    const menuName = await getMenuName(menuId);
     const newDocument = {
-      docId,
+      docNo,
       menuId,
+      menuName,
+      stockOutDate: null,
+      remark: null,
+      locationCode: null,
+      binCode: null,
       createdAt: now.toISOString(),
+      createdBy: null,
       status: "Open",
       products: [],
     };
@@ -46,4 +61,5 @@ const CreateDocument = async (req, res) => {
 
 module.exports = {
   CreateDocument,
+  getMenuName,
 };

@@ -30,6 +30,7 @@ const {
   uploadFileSingle,
   uploadMulti,
 } = require("../../middleware/upload");
+const { CreateDocumentFlowSave } = require("../CreateDocumentFlowSave");
 
 const APIs = express.Router();
 
@@ -62,6 +63,8 @@ APIs.get("/CreateDocument", checkToken, CreateDocument);
 APIs.post("/upload/image", checkToken, uploadImageSingle, uploadImage);
 APIs.post("/upload/file", checkToken, uploadFileSingle, uploadFile);
 APIs.post("/upload/multi", checkToken, uploadMulti, uploadMultiple);
+
+APIs.post("/CreateDocument", checkToken, CreateDocumentFlowSave);
 
 // Files management
 APIs.get("/files-list", checkToken, listUploadedFiles);

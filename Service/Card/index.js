@@ -39,8 +39,30 @@ const getCardList = async (req, res) => {
     if (menuId >= 4) {
       return responseError(res, "Failed to menuId", 401);
     }
-    if (menuId >= 1 && menuId <= 2) {
-      return responseSuccess(res, "Card list fetched (ยังไม่พร้อมใช้งาน)", {});
+    if (menuId === 1) {
+      const data = [
+        {
+          id: "1",
+          docNo: "test",
+          menuType: getMenuType(menuId),
+          status: "Open",
+          details: [
+            { label: "วันที่ส่งสินค้า", value: formatDate(new Date()) },
+            {
+              label: "ส่งจากคลัง",
+              value: "test",
+            },
+            { label: "E-Shop No.", value: "test" },
+            { label: "หมายเหตุ", value: "test" },
+          ],
+        },
+      ];
+
+      return responseSuccess(
+        res,
+        "Card list fetched (ยังไม่พร้อมใช้งาน)",
+        data
+      );
     }
     const navData = await getCardListNAV({ menuId, branchCode });
     const formatted = navData.map((item, idx) => ({
