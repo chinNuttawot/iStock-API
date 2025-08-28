@@ -148,8 +148,23 @@ const GetDocuments = async (req, res) => {
       status: "Open", //"Open" | "Pending Approval" | "Approved" | "Rejected"
       details: [
         { label: "วันที่ตัดสินค้า", value: formatDate(item.stockOutDate) },
-        { label: "คลังหลัก", value: `${item.locationCodeFrom}` },
-        { label: "คลังย่อย", value: `${item.binCodeFrom}` },
+
+        ...(item.menuId !== 2
+          ? [
+              { label: "คลังหลัก", value: `${item.locationCodeFrom}` },
+              { label: "คลังย่อย", value: `${item.binCodeFrom}` },
+            ]
+          : []),
+
+        ...(item.menuId === 2
+          ? [
+              { label: "คลังหลัก (ต้นทาง)", value: `${item.locationCodeFrom}` },
+              { label: "คลังย่อย (ต้นทาง)", value: `${item.binCodeFrom}` },
+              { label: "คลังหลัก (ปลายทาง)", value: `${item.locationCodeTo}` },
+              { label: "คลังย่อย (ปลายทาง)", value: `${item.binCodeTo}` },
+            ]
+          : []),
+
         { label: "หมายเหตุ", value: item.remark || "-" },
       ],
     }));
@@ -182,7 +197,9 @@ const GetDocumentByDocNo = async (req, res) => {
           d.[binCodeFrom],
           d.[createdAt],
           d.[createdBy],
-          d.[status]
+          d.[status],
+          d.[locationCodeTo],
+          d.[binCodeTo],
         FROM [Documents iStock] d
         WHERE d.[docNo] = @docNo
       `);
