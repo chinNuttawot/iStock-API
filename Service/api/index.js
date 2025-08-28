@@ -31,6 +31,11 @@ const {
   uploadMulti,
 } = require("../../middleware/upload");
 const { CreateDocumentFlowSave } = require("../CreateDocumentFlowSave");
+const {
+  GetDocuments,
+  GetDocumentProductsByDocNo,
+  GetDocumentByDocNo,
+} = require("../Document");
 
 const APIs = express.Router();
 
@@ -58,6 +63,9 @@ APIs.get("/Dashboard", checkToken, getDashboard);
 APIs.get("/CardList", checkToken, getCardList);
 APIs.get("/CardDetailList", checkToken, getCardDetail);
 APIs.get("/CreateDocument", checkToken, CreateDocument);
+APIs.get("/documents", checkToken, GetDocuments);
+APIs.get("/documents/:docNo/products", checkToken, GetDocumentProductsByDocNo);
+APIs.get("/documents/:docNo", checkToken, GetDocumentByDocNo);
 
 // ===== Upload endpoints (สำคัญ: checkToken ต้องมาก่อน multer) =====
 APIs.post("/upload/image", checkToken, uploadImageSingle, uploadImage);

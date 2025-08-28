@@ -89,4 +89,6 @@ const getCardList = async (req, res) => {
 
 module.exports = {
   getCardList,
+  getMenuType,
+  formatDate,
 };

@@ -7,21 +7,21 @@ const {
 
 const getBinCodesByLocation = async (req, res) => {
   try {
-    const { locationCode } = req.query;
+    const { locationCodeFrom } = req.query;
 
-    if (!locationCode) {
-      return responseError(res, "locationCode is required", 400);
+    if (!locationCodeFrom) {
+      return responseError(res, "locationCodeFrom is required", 400);
     }
 
     const pool = await poolPromise;
     const result = await pool
       .request()
-      .input("locationCode", sql.VarChar, locationCode).query(`
+      .input("locationCodeFrom", sql.VarChar, locationCodeFrom).query(`
         SELECT DISTINCT
           LTRIM(RTRIM([Code])) AS [key],
           LTRIM(RTRIM([Code])) AS [value]
         FROM [FAM_GOLIVE$Bin]
-        WHERE [Location Code] COLLATE SQL_Latin1_General_CP1_CI_AS = @locationCode
+        WHERE [Location Code] COLLATE SQL_Latin1_General_CP1_CI_AS = @locationCodeFrom
           AND [Warehouse Center] = 1
           AND LTRIM(RTRIM([Code])) <> ''
         ORDER BY [key]
