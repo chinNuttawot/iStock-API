@@ -83,7 +83,7 @@ const getCardList = async (req, res) => {
 
     return responseSuccess(res, "Card list fetched", formatted);
   } catch (error) {
-    return responseError(res, "Failed to get card list", error.message);
+    return responseError(res, "Failed to get card list");
   }
 };
 

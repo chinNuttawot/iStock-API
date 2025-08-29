@@ -128,7 +128,7 @@ const CreateDocumentFlowSave = async (req, res) => {
       if (tx._aborted !== true) await tx.rollback();
     } catch (_) {}
 
-    return responseError(res, "Failed to create document", error.message);
+    return responseError(res, "Failed to create document");
   }
 };
 

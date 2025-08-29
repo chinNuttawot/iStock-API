@@ -35,7 +35,9 @@ const {
   GetDocuments,
   GetDocumentProductsByDocNo,
   GetDocumentByDocNo,
+  GetDocumentsByDocNos,
 } = require("../Document");
+const { DeleteDocumentProducts } = require("../DeleteDocumentProducts");
 
 const APIs = express.Router();
 
@@ -66,6 +68,7 @@ APIs.get("/CreateDocument", checkToken, CreateDocument);
 APIs.get("/documents", checkToken, GetDocuments);
 APIs.get("/documents/:docNo/products", checkToken, GetDocumentProductsByDocNo);
 APIs.get("/documents/:docNo", checkToken, GetDocumentByDocNo);
+APIs.get("/documents-send-NAV", checkToken, GetDocumentsByDocNos);
 
 // ===== Upload endpoints (สำคัญ: checkToken ต้องมาก่อน multer) =====
 APIs.post("/upload/image", checkToken, uploadImageSingle, uploadImage);
@@ -73,6 +76,7 @@ APIs.post("/upload/file", checkToken, uploadFileSingle, uploadFile);
 APIs.post("/upload/multi", checkToken, uploadMulti, uploadMultiple);
 
 APIs.post("/CreateDocument", checkToken, CreateDocumentFlowSave);
+APIs.post("/document-products-delete", checkToken, DeleteDocumentProducts);
 
 // Files management
 APIs.get("/files-list", checkToken, listUploadedFiles);

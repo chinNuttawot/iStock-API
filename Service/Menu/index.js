@@ -24,7 +24,7 @@ const getMenus = async (req, res) => {
     return responseSuccess(res, "Menu list fetched", result.recordset);
   } catch (err) {
     console.error("Error fetching menus:", err);
-    return responseError(res, "Internal server error", err.message);
+    return responseError(res, "Internal server error");
   }
 };
 

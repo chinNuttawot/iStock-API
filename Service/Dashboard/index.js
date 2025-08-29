@@ -8,7 +8,7 @@ const getDashboard = async (req, res) => {
   try {
     return responseSuccess(res, "Dashboard data fetched", dashboardData);
   } catch (error) {
-    return responseError(res, "Failed to get dashboard data", error.message);
+    return responseError(res, "Failed to get dashboard data");
   }
 };
 

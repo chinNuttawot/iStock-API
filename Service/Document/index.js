@@ -172,7 +172,7 @@ const GetDocuments = async (req, res) => {
     // ✅ คืนเฉพาะ array ของรายการ (ไม่มี page/pageSize/total/totalPages)
     return responseSuccess(res, "Get documents successfully", recordset);
   } catch (err) {
-    return responseError(res, "Failed to get documents", err.message);
+    return responseError(res, "Failed to get documents");
   }
 };
 
@@ -199,7 +199,7 @@ const GetDocumentByDocNo = async (req, res) => {
           d.[createdBy],
           d.[status],
           d.[locationCodeTo],
-          d.[binCodeTo],
+          d.[binCodeTo]
         FROM [Documents iStock] d
         WHERE d.[docNo] = @docNo
       `);
@@ -232,6 +232,9 @@ const GetDocumentByDocNo = async (req, res) => {
       menuType: getMenuType(header.menuId), // อิงจาก header
       menuId: header.menuId,
       model: item.model,
+      quantity: item.quantity,
+      serialNo: item.serialNo,
+      remark: item.remark || "",
       details: [
         { label: "จำนวน", value: item.quantity },
         { label: "รหัสแบบ", value: item.model },
@@ -245,7 +248,7 @@ const GetDocumentByDocNo = async (req, res) => {
       products,
     });
   } catch (err) {
-    return responseError(res, "Failed to get document", err.message);
+    return responseError(res, "Failed to get document");
   }
 };
 
@@ -280,6 +283,7 @@ const GetDocumentProductsByDocNo = async (req, res) => {
       menuType: getMenuType(item.menuId),
       menuId: item.menuId,
       model: item.model,
+      uuid: item.uuid,
       details: [
         { label: "จำนวน", value: item.quantity },
         { label: "รหัสแบบ", value: item.model },
@@ -290,7 +294,117 @@ const GetDocumentProductsByDocNo = async (req, res) => {
 
     return responseSuccess(res, "Get products successfully", recordset);
   } catch (err) {
-    return responseError(res, "Failed to get products", err.message);
+    return responseError(res, "Failed to get products");
+  }
+};
+
+// GET /documents-send-NAV?docNo=MC-250829-5200|MO-250828-0001
+const GetDocumentsByDocNos = async (req, res) => {
+  const { docNo } = req.query;
+  if (!docNo) return responseError(res, "docNo is required", 400);
+
+  // 1) split และ sanitize
+  const docNos = docNo
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (docNos.length === 0) {
+    return responseError(res, "No valid docNo provided", 400);
+  }
+
+  try {
+    const pool = await poolPromise;
+
+    // 2) สร้าง placeholders @doc0,@doc1,...
+    const placeholders = docNos.map((_, i) => `@doc${i}`).join(", ");
+
+    // 3) ORDER BY ให้เรียงตามลำดับที่ส่งมา
+    const orderByCase = docNos
+      .map((d, i) => `WHEN ${`@doc${i}`} THEN ${i}`)
+      .join(" ");
+
+    // ---------- headers ----------
+    const hReq = new sql.Request(pool);
+    docNos.forEach((d, i) => hReq.input(`doc${i}`, sql.VarChar(50), d));
+
+    const hSql = `
+      SELECT
+        d.[docNo],
+        d.[menuId],
+        d.[menuName],
+        d.[stockOutDate],
+        d.[remark],
+        d.[locationCodeFrom],
+        d.[binCodeFrom],
+        d.[createdAt],
+        d.[createdBy],
+        d.[status],
+        d.[locationCodeTo],
+        d.[binCodeTo]
+      FROM [Documents iStock] d
+      WHERE d.[docNo] IN (${placeholders})
+      ORDER BY CASE d.[docNo] ${orderByCase} ELSE 999999 END
+    `;
+
+    const hRs = await hReq.query(hSql);
+    const headers = hRs.recordset || [];
+    if (headers.length === 0) {
+      return responseError(res, "No documents found", 404);
+    }
+
+    // ทำ map ไว้หา header ตาม docNo เร็วๆ
+    const headerByDoc = new Map(headers.map((h) => [h.docNo, h]));
+
+    // ---------- products ----------
+    const pReq = new sql.Request(pool);
+    docNos.forEach((d, i) => pReq.input(`doc${i}`, sql.VarChar(50), d));
+
+    const pSql = `
+      SELECT
+        dp.[id],
+        dp.[uuid],
+        dp.[docNo],
+        dp.[productCode],
+        dp.[model],
+        dp.[quantity],
+        dp.[serialNo],
+        dp.[remark]
+      FROM [DocumentProducts iStock] dp
+      WHERE dp.[docNo] IN (${placeholders})
+      ORDER BY dp.[id] ASC
+    `;
+
+    const pRs = await pReq.query(pSql);
+    const productsByDoc = new Map();
+    (pRs.recordset || []).forEach((item) => {
+      if (!productsByDoc.has(item.docNo)) productsByDoc.set(item.docNo, []);
+      const h = headerByDoc.get(item.docNo);
+      productsByDoc.get(item.docNo).push({
+        id: String(item.id),
+        docNo: item.docNo,
+        menuType: h ? getMenuType(h.menuId) : undefined,
+        menuId: h ? h.menuId : undefined,
+        model: item.model,
+        quantity: item.quantity,
+        serialNo: item.serialNo,
+        remark: item.remark || "",
+      });
+    });
+
+    // ---------- ประกอบผลลัพธ์ตามลำดับที่ขอมา ----------
+    const results = docNos
+      .map((d) => headerByDoc.get(d))
+      .filter(Boolean)
+      .map((h) => ({
+        ...h,
+        products: productsByDoc.get(h.docNo) || [],
+      }));
+
+    return responseSuccess(res, "Get documents successfully", results);
+  } catch (err) {
+    // อย่าใส่ message เป็น status code
+    return responseError(res, `Failed to get documents: ${err.message}`, 500);
   }
 };
 
@@ -298,4 +412,5 @@ module.exports = {
   GetDocuments,
   GetDocumentByDocNo,
   GetDocumentProductsByDocNo,
+  GetDocumentsByDocNos,
 };

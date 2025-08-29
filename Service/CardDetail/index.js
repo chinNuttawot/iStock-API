@@ -64,7 +64,7 @@ const getCardDetail = async (req, res) => {
 
     return responseSuccess(res, "Card Detail list fetched", formatted);
   } catch (error) {
-    return responseError(res, "Failed to get card detail", error.message);
+    return responseError(res, "Failed to get card detail");
   }
 };
 

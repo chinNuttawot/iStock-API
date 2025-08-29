@@ -55,7 +55,7 @@ const CreateDocument = async (req, res) => {
 
     return responseSuccess(res, "Document created successfully", newDocument);
   } catch (error) {
-    return responseError(res, "Failed to create document", error.message);
+    return responseError(res, "Failed to create document");
   }
 };
 
