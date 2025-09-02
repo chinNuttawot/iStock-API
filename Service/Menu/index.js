@@ -6,6 +6,7 @@ const {
 
 const getMenus = async (req, res) => {
   try {
+    const isApprover = req.query.isApprover === true ?? false;
     const pool = await poolPromise;
     const result = await pool.request().query(`
         SELECT 
@@ -21,7 +22,11 @@ const getMenus = async (req, res) => {
         ORDER BY [ID]
       `);
 
-    return responseSuccess(res, "Menu list fetched", result.recordset);
+    const dataReturn = result.recordset.filter((v) =>
+      isApprover ? v.menuId === 4 || v.menuId === 6 : v.menuId !== 6
+    );
+
+    return responseSuccess(res, "Menu list fetched", dataReturn);
   } catch (err) {
     console.error("Error fetching menus:", err);
     return responseError(res, "Internal server error");

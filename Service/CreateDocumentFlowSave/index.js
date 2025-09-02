@@ -33,8 +33,10 @@ const CreateDocumentFlowSave = async (req, res) => {
     createdBy,
     status,
     products = [],
+    branchCode,
   } = body;
 
+  if (!branchCode) return responseError(res, "branchCode is required", 400);
   if (!docNo) return responseError(res, "docNo is required", 400);
   if (!Array.isArray(products) || products.length === 0) {
     return responseError(res, "products must be a non-empty array", 400);
@@ -74,11 +76,12 @@ const CreateDocumentFlowSave = async (req, res) => {
       .input("createdBy", sql.NVarChar(50), createdBy ?? null)
       .input("status", sql.NVarChar(50), status ?? null)
       .input("locationCodeTo", sql.NVarChar(50), locationCodeTo ?? null)
-      .input("binCodeTo", sql.NVarChar(50), binCodeTo ?? null).query(`
+      .input("binCodeTo", sql.NVarChar(50), binCodeTo ?? null)
+      .input("branchCode", sql.NVarChar(50), branchCode ?? null).query(`
         INSERT INTO [Documents iStock] 
-        (docNo, menuId, menuName, stockOutDate, remark, locationCodeFrom, binCodeFrom, createdAt, createdBy, status, locationCodeTo, binCodeTo)
+        (docNo, menuId, menuName, stockOutDate, remark, locationCodeFrom, binCodeFrom, createdAt, createdBy, status, locationCodeTo, binCodeTo, branchCode)
         VALUES
-        (@docNo, @menuId, @menuName, @stockOutDate, @remark, @locationCodeFrom, @binCodeFrom, @createdAt, @createdBy, @status, @locationCodeTo, @binCodeTo)
+        (@docNo, @menuId, @menuName, @stockOutDate, @remark, @locationCodeFrom, @binCodeFrom, @createdAt, @createdBy, @status, @locationCodeTo, @binCodeTo, @branchCode)
       `);
 
     // 3) Insert Detail(s) -> [DocumentProducts iStock]
@@ -105,11 +108,12 @@ const CreateDocumentFlowSave = async (req, res) => {
         .input("model", sql.NVarChar(100), model ?? null)
         .input("quantity", sql.Decimal(18, 2), isNaN(qtyNum) ? 0 : qtyNum)
         .input("serialNo", sql.NVarChar(100), serialNo ?? null)
-        .input("remark", sql.NVarChar(255), itemRemark ?? null).query(`
+        .input("remark", sql.NVarChar(255), itemRemark ?? null)
+        .input("branchCode", sql.NVarChar(50), branchCode ?? null).query(`
           INSERT INTO [DocumentProducts iStock]
-          (docNo, uuid, productCode, model, quantity, serialNo, remark)
+          (docNo, uuid, productCode, model, quantity, serialNo, remark, branchCode)
           VALUES
-          (@docNo, @uuid, @productCode, @model, @quantity, @serialNo, @remark)
+          (@docNo, @uuid, @productCode, @model, @quantity, @serialNo, @remark, @branchCode)
         `);
     }
 

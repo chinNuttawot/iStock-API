@@ -46,6 +46,8 @@ const GetDocuments = async (req, res) => {
       200
     );
 
+    const isApprover = req.query.isApprover === "true" ?? false;
+    const branchCode = req.query.branchCode ?? null;
     const status = req.query.status ?? null;
     const menuId = req.query.menuId ? parseInt(req.query.menuId, 10) : null;
     const locationCodeFrom = req.query.locationCodeFrom ?? null;
@@ -83,12 +85,23 @@ const GetDocuments = async (req, res) => {
       whereParts.push("d.[locationCodeFrom] = @locationCodeFrom");
     if (binCodeFrom) whereParts.push("d.[binCodeFrom] = @binCodeFrom");
 
-    if (createdBy) {
-      // ใช้ createdBy เป็นคีย์เวิร์ดค้นหลายคอลัมน์ (หากต้องการให้ค้นเฉพาะผู้สร้าง เปลี่ยนเป็น d.[createdBy] = @createdBy)
+    if (createdBy && !isApprover) {
       whereParts.push(
         "(d.[docNo] LIKE @kw OR d.[menuName] LIKE @kw OR d.[locationCodeFrom] LIKE @kw OR d.[binCodeFrom] LIKE @kw)"
       );
     }
+
+    if (isApprover) {
+      const branches = branchCode
+        .split("|")
+        .map((b) => `'${b.trim()}'`)
+        .filter(Boolean);
+
+      if (branches.length > 0) {
+        whereParts.push(`d.branchCode IN (${branches.join(",")})`);
+      }
+    }
+
     if (createdFrom) whereParts.push("d.[createdAt] >= @createdFrom");
     if (createdTo)
       whereParts.push("d.[createdAt] < DATEADD(day, 1, @createdTo)"); // รวมทั้งวัน
@@ -132,6 +145,7 @@ const GetDocuments = async (req, res) => {
         d.[status],
         d.[locationCodeTo],
         d.[binCodeTo],
+        d.[branchCode],
         (SELECT COUNT(1) FROM [DocumentProducts iStock] dp WHERE dp.[docNo] = d.[docNo]) AS itemsCount
       FROM [Documents iStock] d
       ${whereSql}
@@ -145,7 +159,8 @@ const GetDocuments = async (req, res) => {
       docNo: item.docNo,
       menuType: getMenuType(item.menuId), // ใช้ menuId ของแต่ละเอกสาร
       menuId: item.menuId,
-      status: "Open", //"Open" | "Pending Approval" | "Approved" | "Rejected"
+      branchCode: item.branchCode,
+      status: item.status, //"Open" | "Pending Approval" | "Approved" | "Rejected"
       details: [
         { label: "วันที่ตัดสินค้า", value: formatDate(item.stockOutDate) },
 
@@ -269,6 +284,7 @@ const GetDocumentProductsByDocNo = async (req, res) => {
           dp.[model],
           dp.[quantity],
           dp.[serialNo],
+          dp.[picURL],
           dp.[remark],
           d.[menuId] -- join เพื่อเอามาแปลง menuType
         FROM [DocumentProducts iStock] dp
@@ -284,6 +300,7 @@ const GetDocumentProductsByDocNo = async (req, res) => {
       menuId: item.menuId,
       model: item.model,
       uuid: item.uuid,
+      picURL: item.picURL,
       details: [
         { label: "จำนวน", value: item.quantity },
         { label: "รหัสแบบ", value: item.model },
@@ -303,8 +320,7 @@ const GetDocumentsByDocNos = async (req, res) => {
   const { docNo } = req.query;
   if (!docNo) return responseError(res, "docNo is required", 400);
 
-  // 1) split และ sanitize
-  const docNos = docNo
+  const docNos = String(docNo)
     .split("|")
     .map((s) => s.trim())
     .filter(Boolean);
@@ -315,33 +331,16 @@ const GetDocumentsByDocNos = async (req, res) => {
 
   try {
     const pool = await poolPromise;
-
-    // 2) สร้าง placeholders @doc0,@doc1,...
     const placeholders = docNos.map((_, i) => `@doc${i}`).join(", ");
-
-    // 3) ORDER BY ให้เรียงตามลำดับที่ส่งมา
     const orderByCase = docNos
-      .map((d, i) => `WHEN ${`@doc${i}`} THEN ${i}`)
+      .map((_, i) => `WHEN @doc${i} THEN ${i}`)
       .join(" ");
 
-    // ---------- headers ----------
     const hReq = new sql.Request(pool);
     docNos.forEach((d, i) => hReq.input(`doc${i}`, sql.VarChar(50), d));
 
     const hSql = `
-      SELECT
-        d.[docNo],
-        d.[menuId],
-        d.[menuName],
-        d.[stockOutDate],
-        d.[remark],
-        d.[locationCodeFrom],
-        d.[binCodeFrom],
-        d.[createdAt],
-        d.[createdBy],
-        d.[status],
-        d.[locationCodeTo],
-        d.[binCodeTo]
+      SELECT *
       FROM [Documents iStock] d
       WHERE d.[docNo] IN (${placeholders})
       ORDER BY CASE d.[docNo] ${orderByCase} ELSE 999999 END
@@ -350,60 +349,48 @@ const GetDocumentsByDocNos = async (req, res) => {
     const hRs = await hReq.query(hSql);
     const headers = hRs.recordset || [];
     if (headers.length === 0) {
-      return responseError(res, "No documents found", 404);
+      return res.json([]);
     }
 
-    // ทำ map ไว้หา header ตาม docNo เร็วๆ
     const headerByDoc = new Map(headers.map((h) => [h.docNo, h]));
 
-    // ---------- products ----------
     const pReq = new sql.Request(pool);
     docNos.forEach((d, i) => pReq.input(`doc${i}`, sql.VarChar(50), d));
 
     const pSql = `
-      SELECT
-        dp.[id],
-        dp.[uuid],
-        dp.[docNo],
-        dp.[productCode],
-        dp.[model],
-        dp.[quantity],
-        dp.[serialNo],
-        dp.[remark]
+      SELECT *
       FROM [DocumentProducts iStock] dp
       WHERE dp.[docNo] IN (${placeholders})
-      ORDER BY dp.[id] ASC
+      ORDER BY CASE dp.[docNo] ${orderByCase} ELSE 999999 END, dp.[id] ASC
     `;
 
     const pRs = await pReq.query(pSql);
-    const productsByDoc = new Map();
-    (pRs.recordset || []).forEach((item) => {
-      if (!productsByDoc.has(item.docNo)) productsByDoc.set(item.docNo, []);
-      const h = headerByDoc.get(item.docNo);
-      productsByDoc.get(item.docNo).push({
-        id: String(item.id),
-        docNo: item.docNo,
-        menuType: h ? getMenuType(h.menuId) : undefined,
-        menuId: h ? h.menuId : undefined,
+    const products = pRs.recordset || [];
+    const rows = products.map((item) => {
+      const h = headerByDoc.get(item.docNo) || {};
+      return {
+        docNo: h.docNo || item.docNo,
+        menuId: h.menuId,
+        menuName: h.menuName,
+        stockOutDate: h.stockOutDate,
+        remark: h.remark,
+        locationCodeFrom: h.locationCodeFrom,
+        binCodeFrom: h.binCodeFrom,
+        createdAt: h.createdAt,
+        createdBy: h.createdBy,
+        status: h.status,
+        locationCodeTo: h.locationCodeTo ?? "",
+        binCodeTo: h.binCodeTo ?? "",
+        uuid: String(item.uuid || "").toLowerCase(),
+        menuType: h.menuId != null ? getMenuType(h.menuId) : undefined,
         model: item.model,
         quantity: item.quantity,
         serialNo: item.serialNo,
-        remark: item.remark || "",
-      });
+        remarkProduct: item.remark || "",
+      };
     });
-
-    // ---------- ประกอบผลลัพธ์ตามลำดับที่ขอมา ----------
-    const results = docNos
-      .map((d) => headerByDoc.get(d))
-      .filter(Boolean)
-      .map((h) => ({
-        ...h,
-        products: productsByDoc.get(h.docNo) || [],
-      }));
-
-    return responseSuccess(res, "Get documents successfully", results);
+    return res.json(rows);
   } catch (err) {
-    // อย่าใส่ message เป็น status code
     return responseError(res, `Failed to get documents: ${err.message}`, 500);
   }
 };

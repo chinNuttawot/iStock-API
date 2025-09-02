@@ -93,7 +93,7 @@ const getCardListNAV = async (item) => {
     //สแกนรับ
     if (menuId === 0) {
       res = await axios.get(
-        `${NAV_URL_TRANSFER_ORDER_WS}?$filter=branchCode eq '${branchCode}'`,
+        `${NAV_URL_TRANSFER_ORDER_WS}?$filter=${branchCode}`,
         {
           headers: headersNAV,
           timeout: 10000,

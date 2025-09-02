@@ -32,44 +32,36 @@ function getMenuType(menuId) {
 const getCardList = async (req, res) => {
   try {
     let { menuId, branchCode } = req.query;
+    const isApprover = req.query.isApprover === "true" ?? false;
     menuId = Number(menuId);
     if (isNaN(menuId)) {
-      return responseError(res, "Failed to menuId", 400);
-    }
-    if (menuId >= 4) {
       return responseError(res, "Failed to menuId", 401);
     }
-    if (menuId === 1) {
-      const data = [
-        {
-          id: "1",
-          docNo: "test",
-          menuType: getMenuType(menuId),
-          status: "Open",
-          details: [
-            { label: "วันที่ส่งสินค้า", value: formatDate(new Date()) },
-            {
-              label: "ส่งจากคลัง",
-              value: "test",
-            },
-            { label: "E-Shop No.", value: "test" },
-            { label: "หมายเหตุ", value: "test" },
-          ],
-        },
-      ];
-
-      return responseSuccess(
-        res,
-        "Card list fetched (ยังไม่พร้อมใช้งาน)",
-        data
-      );
+    if ([1, 2, 3, 4].includes(menuId)) {
+      return responseError(res, "Failed to menuId", 401);
     }
-    const navData = await getCardListNAV({ menuId, branchCode });
+
+    if (!branchCode) {
+      return responseError(res, "Failed to branchCode", 401);
+    }
+
+    let _branchCode = `branchCode eq '${branchCode}'`;
+
+    if (isApprover) {
+      const branches = branchCode
+        .split("|")
+        .map((b) => b.trim())
+        .filter(Boolean);
+      _branchCode = branches.map((b) => `branchCode eq '${b}'`).join(" or ");
+    }
+
+    const navData = await getCardListNAV({ menuId, branchCode: _branchCode });
     const formatted = navData.map((item, idx) => ({
       id: String(idx + 1),
       docNo: item.docNo,
       menuType: getMenuType(menuId),
       status: item.status,
+      branchCode: item.branchCode,
       details: [
         { label: "วันที่ส่งสินค้า", value: formatDate(item.shipmentDate) },
         {
@@ -83,6 +75,8 @@ const getCardList = async (req, res) => {
 
     return responseSuccess(res, "Card list fetched", formatted);
   } catch (error) {
+    console.log("error ====>", error);
+
     return responseError(res, "Failed to get card list");
   }
 };
