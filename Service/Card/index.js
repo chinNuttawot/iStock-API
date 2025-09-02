@@ -73,6 +73,7 @@ const getCardList = async (req, res) => {
       menuType: getMenuType(menuId),
       status: item.status,
       branchCode: item.branchCode,
+      date: `สร้างวันที่ ${formatDateTime(item.shipmentDate)}`,
       details: [
         { label: "วันที่ส่งสินค้า", value: formatDate(item.shipmentDate) },
         {
