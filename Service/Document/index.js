@@ -4,9 +4,9 @@ const {
   responseError,
 } = require("../../utils/responseHelper");
 const { sql, poolPromise } = require("../../config/db");
-const { getMenuType, formatDate } = require("../Card");
+const { getMenuType, formatDate, formatDateTime } = require("../Card");
 
-/** แปลง DD/MM/พ.ศ. -> JS Date (UTC 00:00) */
+/** แปลง DD/MM/พ.ศ. -> JS Date (LOCAL 00:00) */
 function parseThaiDateToJSDate(ddmmyyyy_thai) {
   if (!ddmmyyyy_thai) return null;
   const [dd, mm, yyyyThai] = ddmmyyyy_thai
@@ -14,7 +14,8 @@ function parseThaiDateToJSDate(ddmmyyyy_thai) {
     .map((v) => parseInt(v, 10));
   if (!dd || !mm || !yyyyThai) return null;
   const yyyy = yyyyThai - 543;
-  return new Date(Date.UTC(yyyy, mm - 1, dd, 0, 0, 0, 0));
+  // ใช้ local time เพื่อให้ CAST(date) ใน SQL จับวันเดียวกันแน่นอน
+  return new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
 }
 
 /** สร้าง ORDER BY ที่ปลอดภัย */
@@ -34,33 +35,41 @@ function buildOrderBy(sortBy = "createdAt", sortDir = "DESC") {
   return { col, dir };
 }
 
-/** GET /documents?page=&pageSize=&status=&menuId=&locationCodeFrom=&binCodeFrom=&createdBy=&createdFrom=&createdTo=&stockDateFromTH=&stockDateToTH=&sortBy=&sortDir= */
+/** GET /documents?... */
 const GetDocuments = async (req, res) => {
   try {
     const pool = await poolPromise;
 
-    // -------- query params ----------
     const page = Math.max(parseInt(req.query.page ?? "1", 10), 1);
     const pageSize = Math.min(
       Math.max(parseInt(req.query.pageSize ?? "20", 10), 1),
       200
     );
 
-    const isApprover = req.query.isApprover === "true" ?? false;
+    const isApprover =
+      String(req.query.isApprover ?? "").toLowerCase() === "true";
     const branchCode = req.query.branchCode ?? null;
+    const docNo = req.query.docNo ?? null;
     const status = req.query.status ?? null;
     const menuId = req.query.menuId ? parseInt(req.query.menuId, 10) : null;
     const locationCodeFrom = req.query.locationCodeFrom ?? null;
     const binCodeFrom = req.query.binCodeFrom ?? null;
     const createdBy = req.query.createdBy?.trim() || null;
 
-    // createdAt: ใช้ ISO (เช่น 2025-08-01)
-    const createdFrom = req.query.createdFrom
-      ? new Date(req.query.createdFrom)
-      : null;
-    const createdTo = req.query.createdTo
-      ? new Date(req.query.createdTo)
-      : null;
+    // ✅ ใช้ createdAt (ไทย DD/MM/พ.ศ.) เทียบเฉพาะ "วัน" เดียว
+    const createdAtTH = req.query.createdAt ?? null;
+    let createdDateOnly = null;
+    if (createdAtTH) {
+      const d = parseThaiDateToJSDate(createdAtTH);
+      if (!d || isNaN(d.getTime())) {
+        return responseError(
+          res,
+          "รูปแบบวันที่ createdAt ไม่ถูกต้อง (ควรเป็น DD/MM/พ.ศ.)",
+          400
+        );
+      }
+      createdDateOnly = d;
+    }
 
     // stockOutDate (ไทย DD/MM/พ.ศ.)
     const stockDateFromTH = req.query.stockDateFromTH
@@ -76,35 +85,37 @@ const GetDocuments = async (req, res) => {
     );
     const offset = (page - 1) * pageSize;
 
-    // -------- สร้าง where เงื่อนไข ----------
+    // -------- where ----------
     const whereParts = [];
     if (status) whereParts.push("d.[status] = @status");
+
+    // docNo: insensitive + prefix match
+    if (docNo) whereParts.push("UPPER(d.[docNo]) LIKE UPPER(@docNo)");
+
     if (menuId !== null && !Number.isNaN(menuId))
       whereParts.push("d.[menuId] = @menuId");
     if (locationCodeFrom)
       whereParts.push("d.[locationCodeFrom] = @locationCodeFrom");
     if (binCodeFrom) whereParts.push("d.[binCodeFrom] = @binCodeFrom");
 
-    if (createdBy && !isApprover) {
-      whereParts.push(
-        "(d.[docNo] LIKE @kw OR d.[menuName] LIKE @kw OR d.[locationCodeFrom] LIKE @kw OR d.[binCodeFrom] LIKE @kw)"
-      );
-    }
+    if (createdBy && !isApprover) whereParts.push("d.[createdBy] = @createdBy");
 
-    if (isApprover) {
+    if (isApprover && branchCode) {
       const branches = branchCode
         .split("|")
-        .map((b) => `'${b.trim()}'`)
+        .map((b) => b.trim())
         .filter(Boolean);
-
       if (branches.length > 0) {
-        whereParts.push(`d.branchCode IN (${branches.join(",")})`);
+        whereParts.push(
+          `d.[branchCode] IN (${branches.map((_, i) => `@br${i}`).join(",")})`
+        );
       }
     }
 
-    if (createdFrom) whereParts.push("d.[createdAt] >= @createdFrom");
-    if (createdTo)
-      whereParts.push("d.[createdAt] < DATEADD(day, 1, @createdTo)"); // รวมทั้งวัน
+    // ✅ createdAt เฉพาะวันเดียว (กัน timezone ด้วย CAST(date))
+    if (createdDateOnly) {
+      whereParts.push("CAST(d.[createdAt] AS date) = @createdDate");
+    }
 
     if (stockDateFromTH) whereParts.push("d.[stockOutDate] >= @stockFrom");
     if (stockDateToTH) whereParts.push("d.[stockOutDate] <= @stockTo");
@@ -113,24 +124,45 @@ const GetDocuments = async (req, res) => {
       ? `WHERE ${whereParts.join(" AND ")}`
       : "";
 
-    // -------- query หน้า (ไม่ต้องนับ total อีกต่อไป) ----------
+    // -------- bind ----------
     const listReq = new sql.Request(pool);
+
     if (status) listReq.input("status", sql.NVarChar(50), status);
+
+    if (docNo) listReq.input("docNo", sql.NVarChar(50), `${docNo}%`); // prefix match
+
     if (menuId !== null && !Number.isNaN(menuId))
       listReq.input("menuId", sql.Int, menuId);
     if (locationCodeFrom)
       listReq.input("locationCodeFrom", sql.NVarChar(50), locationCodeFrom);
     if (binCodeFrom)
       listReq.input("binCodeFrom", sql.NVarChar(50), binCodeFrom);
-    if (createdBy) listReq.input("kw", sql.NVarChar(200), `%${createdBy}%`);
-    if (createdFrom) listReq.input("createdFrom", sql.DateTime2, createdFrom);
-    if (createdTo) listReq.input("createdTo", sql.DateTime2, createdTo);
+
+    if (createdBy && !isApprover)
+      listReq.input("createdBy", sql.NVarChar(100), createdBy);
+
+    if (isApprover && branchCode) {
+      const branches = branchCode
+        .split("|")
+        .map((b) => b.trim())
+        .filter(Boolean);
+      branches.forEach((br, i) =>
+        listReq.input(`br${i}`, sql.NVarChar(50), br)
+      );
+    }
+
+    // ✅ bind createdAt (date only)
+    if (createdDateOnly) {
+      listReq.input("createdDate", sql.Date, createdDateOnly);
+    }
+
     if (stockDateFromTH) listReq.input("stockFrom", sql.Date, stockDateFromTH);
     if (stockDateToTH) listReq.input("stockTo", sql.Date, stockDateToTH);
 
     listReq.input("limit", sql.Int, pageSize);
     listReq.input("offset", sql.Int, offset);
 
+    // -------- query ----------
     const dataSql = `
       SELECT
         d.[docNo],
@@ -157,34 +189,36 @@ const GetDocuments = async (req, res) => {
     const recordset = (rs.recordset || []).map((item, idx) => ({
       id: String(idx + 1),
       docNo: item.docNo,
-      menuType: getMenuType(item.menuId), // ใช้ menuId ของแต่ละเอกสาร
+      menuType: getMenuType(item.menuId),
       menuId: item.menuId,
       branchCode: item.branchCode,
-      status: item.status, //"Open" | "Pending Approval" | "Approved" | "Rejected"
+      status: item.status,
+      date: `สร้างวันที่ ${formatDateTime(item.createdAt)}`,
       details: [
-        { label: "วันที่ตัดสินค้า", value: formatDate(item.stockOutDate) },
-
+        {
+          label:
+            item.menuId === 1
+              ? "วันที่ตัดสินค้า"
+              : item.menuId === 2
+              ? "วันที่โอนย้าย"
+              : "วันที่ตรวจสินค้า",
+          value: formatDate(item.stockOutDate),
+        },
         ...(item.menuId !== 2
           ? [
               { label: "คลังหลัก", value: `${item.locationCodeFrom}` },
               { label: "คลังย่อย", value: `${item.binCodeFrom}` },
             ]
-          : []),
-
-        ...(item.menuId === 2
-          ? [
+          : [
               { label: "คลังหลัก (ต้นทาง)", value: `${item.locationCodeFrom}` },
               { label: "คลังย่อย (ต้นทาง)", value: `${item.binCodeFrom}` },
               { label: "คลังหลัก (ปลายทาง)", value: `${item.locationCodeTo}` },
               { label: "คลังย่อย (ปลายทาง)", value: `${item.binCodeTo}` },
-            ]
-          : []),
-
+            ]),
         { label: "หมายเหตุ", value: item.remark || "-" },
       ],
     }));
 
-    // ✅ คืนเฉพาะ array ของรายการ (ไม่มี page/pageSize/total/totalPages)
     return responseSuccess(res, "Get documents successfully", recordset);
   } catch (err) {
     return responseError(res, "Failed to get documents");
@@ -270,12 +304,17 @@ const GetDocumentByDocNo = async (req, res) => {
 /** GET /documents/:docNo/products → คืนเฉพาะ products */
 const GetDocumentProductsByDocNo = async (req, res) => {
   const { docNo } = req.params;
+  const { menuId } = req.query;
+
   if (!docNo) return responseError(res, "docNo is required", 400);
+  if (!menuId) return responseError(res, "menuId is required", 400);
 
   try {
     const pool = await poolPromise;
     const pReq = new sql.Request(pool);
-    const pRs = await pReq.input("docNo", sql.VarChar(50), docNo).query(`
+    const pRs = await pReq
+      .input("docNo", sql.VarChar(50), docNo)
+      .input("menuId", sql.VarChar(50), menuId).query(`
         SELECT
           dp.[id],
           dp.[uuid],
@@ -289,7 +328,7 @@ const GetDocumentProductsByDocNo = async (req, res) => {
           d.[menuId] -- join เพื่อเอามาแปลง menuType
         FROM [DocumentProducts iStock] dp
         INNER JOIN [Documents iStock] d ON d.[docNo] = dp.[docNo]
-        WHERE dp.[docNo] = @docNo
+        WHERE dp.[docNo] = @docNo AND d.[menuId] = @menuId
         ORDER BY dp.[id] ASC
       `);
 

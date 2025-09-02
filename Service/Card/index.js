@@ -13,6 +13,17 @@ function formatDate(dateStr) {
     year: "numeric",
   });
 }
+function formatDateTime(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleString("th-TH", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
 
 function getMenuType(menuId) {
   switch (Number(menuId)) {
@@ -75,7 +86,7 @@ const getCardList = async (req, res) => {
 
     return responseSuccess(res, "Card list fetched", formatted);
   } catch (error) {
-    console.log("error ====>", error);
+    console.error("error ====>", error);
 
     return responseError(res, "Failed to get card list");
   }
@@ -85,4 +96,5 @@ module.exports = {
   getCardList,
   getMenuType,
   formatDate,
+  formatDateTime,
 };

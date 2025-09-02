@@ -38,24 +38,21 @@ const {
   GetDocumentsByDocNos,
 } = require("../Document");
 const { DeleteDocumentProducts } = require("../DeleteDocumentProducts");
+const { getItemVariant } = require("../ItemVariantWS");
+const { getItemProduct } = require("../ItemProductWS");
 
 const APIs = express.Router();
 
-// ===== Public (ไม่ต้องเช็ค token) =====
 APIs.post("/Login", Login);
 APIs.post("/Register", Register);
-APIs.get("/upload", getHealth); // health check ของ upload
+APIs.get("/upload", getHealth);
 
-// ===== Protected (ต้องเช็ค token) =====
-// ตัวอย่าง test endpoint
 APIs.post("/", checkToken, TestAPI);
 APIs.get("/", checkToken, TestAPI);
 
-// Auth/session
 APIs.post("/Logout", checkToken, Logout);
 APIs.post("/DeleteAccount", checkToken, deleteAccount);
 
-// Data endpoints
 APIs.get("/BinCodesByLocation", checkToken, getBinCodesByLocation);
 APIs.get("/Locations", checkToken, getLocations);
 APIs.get("/OrderStatusList", checkToken, getOrderStatusList);
@@ -69,16 +66,15 @@ APIs.get("/documents", checkToken, GetDocuments);
 APIs.get("/documents/:docNo/products", checkToken, GetDocumentProductsByDocNo);
 APIs.get("/documents/:docNo", checkToken, GetDocumentByDocNo);
 APIs.get("/documents-send-NAV", checkToken, GetDocumentsByDocNos);
+APIs.get("/ItemVariantWS", checkToken, getItemVariant);
+APIs.get("/ItemProductWS", checkToken, getItemProduct);
 
-// ===== Upload endpoints (สำคัญ: checkToken ต้องมาก่อน multer) =====
 APIs.post("/upload/image", checkToken, uploadImageSingle, uploadImage);
 APIs.post("/upload/file", checkToken, uploadFileSingle, uploadFile);
 APIs.post("/upload/multi", checkToken, uploadMulti, uploadMultiple);
-
 APIs.post("/CreateDocument", checkToken, CreateDocumentFlowSave);
 APIs.post("/document-products-delete", checkToken, DeleteDocumentProducts);
 
-// Files management
 APIs.get("/files-list", checkToken, listUploadedFiles);
 APIs.delete("/files/:name", checkToken, deleteFile);
 

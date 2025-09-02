@@ -44,6 +44,10 @@ const Login = async (req, res) => {
         if (inputPassword !== navUser.password) {
           return responseError(res, "Invalid password", 401);
         }
+        
+        if (!navUser?.branchCode) {
+          return responseError(res, "ติดต่อ NAV", 400);
+        }
 
         // // ผ่าน ⇒ ออก token เลย (ไม่บันทึก DB เพราะไม่มี record)
         const jwtToken = jwt.sign(
@@ -51,7 +55,7 @@ const Login = async (req, res) => {
           process.env.JWT_SECRET,
           {
             algorithm: "HS256",
-            expiresIn: "5h",
+            expiresIn: "1h",
           }
         );
 
@@ -99,7 +103,7 @@ const Login = async (req, res) => {
       process.env.JWT_SECRET,
       {
         algorithm: "HS256",
-        expiresIn: "5h",
+        expiresIn: "1h",
       }
     );
 

@@ -17,6 +17,8 @@ const RETENTION_DAYS = parseInt(process.env.NAV_RETENTION_DAYS || "1", 10);
 // ใช้ ENV แทนที่จะฮาร์ดโค้ด
 const NAV_URL = process.env.NAV_URL;
 const NAV_URL_TRANSFER_ORDER_WS = process.env.NAV_URL_TRANSFER_ORDER_WS;
+const NAV_URL_ITEM_VARIANT_WS = process.env.NAV_URL_ITEM_VARIANT_WS;
+const NAV_URL_ITEM_WS = process.env.NAV_URL_ITEM_WS;
 const NAV_URL_TRANSFER_ORDER_DETAIL_WS =
   process.env.NAV_URL_TRANSFER_ORDER_DETAIL_WS;
 const NAV_USER = process.env.NAV_USER || "Pmc";
@@ -80,6 +82,46 @@ const getCardDetailListNAV = async (item) => {
     return Array.isArray(data) ? data : [];
   } catch (err) {
     throw new Error("Error get CardList NAV");
+  }
+};
+
+const getItemVariantWS = async (item) => {
+  const { itemNo } = item;
+  let res;
+  try {
+    res = await axios.get(
+      `${NAV_URL_ITEM_VARIANT_WS}?$filter=itemNo eq '${itemNo}'`,
+      {
+        headers: headersNAV,
+        timeout: 10000,
+        httpsAgent,
+      }
+    );
+
+    const data = res.data?.value ?? res.data ?? [];
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    throw new Error("Error get getItemVariantWS NAV");
+  }
+};
+
+const getItemWS = async (item) => {
+  const { itemNo, branchCode } = item;
+  let res;
+  try {
+    res = await axios.get(
+      `${NAV_URL_ITEM_WS}?$filter=itemNo eq '${itemNo}' and Location_Filter eq '${branchCode}'`,
+      {
+        headers: headersNAV,
+        timeout: 10000,
+        httpsAgent,
+      }
+    );
+
+    const data = res.data?.value ?? res.data ?? [];
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    throw new Error("Error get getItemWS NAV");
   }
 };
 
@@ -237,4 +279,6 @@ module.exports = {
   getByUserNAV,
   getCardListNAV,
   getCardDetailListNAV,
+  getItemWS,
+  getItemVariantWS,
 };

@@ -93,6 +93,7 @@ const CreateDocumentFlowSave = async (req, res) => {
         serialNo,
         remark: itemRemark,
         uuid,
+        picURL,
       } = p;
 
       const qtyNum =
@@ -109,11 +110,12 @@ const CreateDocumentFlowSave = async (req, res) => {
         .input("quantity", sql.Decimal(18, 2), isNaN(qtyNum) ? 0 : qtyNum)
         .input("serialNo", sql.NVarChar(100), serialNo ?? null)
         .input("remark", sql.NVarChar(255), itemRemark ?? null)
-        .input("branchCode", sql.NVarChar(50), branchCode ?? null).query(`
+        .input("branchCode", sql.NVarChar(50), branchCode ?? null)
+        .input("picURL", sql.NVarChar(250), picURL ?? null).query(`
           INSERT INTO [DocumentProducts iStock]
-          (docNo, uuid, productCode, model, quantity, serialNo, remark, branchCode)
+          (docNo, uuid, productCode, model, quantity, serialNo, remark, branchCode, picURL)
           VALUES
-          (@docNo, @uuid, @productCode, @model, @quantity, @serialNo, @remark, @branchCode)
+          (@docNo, @uuid, @productCode, @model, @quantity, @serialNo, @remark, @branchCode, @picURL)
         `);
     }
 
