@@ -36,6 +36,8 @@ const {
   GetDocumentProductsByDocNo,
   GetDocumentByDocNo,
   GetDocumentsByDocNos,
+  ApproveDocuments,
+  SendToApproveDocuments,
 } = require("../Document");
 const { DeleteDocumentProducts } = require("../DeleteDocumentProducts");
 const { getItemVariant } = require("../ItemVariantWS");
@@ -74,6 +76,8 @@ APIs.post("/upload/file", checkToken, uploadFileSingle, uploadFile);
 APIs.post("/upload/multi", checkToken, uploadMulti, uploadMultiple);
 APIs.post("/CreateDocument", checkToken, CreateDocumentFlowSave);
 APIs.post("/document-products-delete", checkToken, DeleteDocumentProducts);
+APIs.post("/ApproveDocuments", checkToken, ApproveDocuments);
+APIs.post("/SendToApproveDocuments", checkToken, SendToApproveDocuments);
 
 APIs.get("/files-list", checkToken, listUploadedFiles);
 APIs.delete("/files/:name", checkToken, deleteFile);

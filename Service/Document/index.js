@@ -434,9 +434,170 @@ const GetDocumentsByDocNos = async (req, res) => {
   }
 };
 
+const ApproveDocuments = async (req, res) => {
+  const { docNo, status } = req.body;
+  if (!docNo) return responseError(res, "docNo is required", 400);
+  if (!status) return responseError(res, "status is required", 400);
+
+  const docNos = String(docNo)
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (docNos.length === 0) {
+    return responseError(res, "No valid docNo provided", 400);
+  }
+
+  try {
+    const pool = await poolPromise;
+    const placeholders = docNos.map((_, i) => `@doc${i}`).join(", ");
+    const orderByCase = docNos
+      .map((_, i) => `WHEN @doc${i} THEN ${i}`)
+      .join(" ");
+
+    const hReq = new sql.Request(pool);
+    docNos.forEach((d, i) => hReq.input(`doc${i}`, sql.VarChar(50), d));
+
+    const hSql = `
+      SELECT *
+      FROM [Documents iStock] d
+      WHERE d.[docNo] IN (${placeholders})
+      ORDER BY CASE d.[docNo] ${orderByCase} ELSE 999999 END
+    `;
+
+    const hRs = await hReq.query(hSql);
+    const headers = hRs.recordset || [];
+    if (headers.length === 0) {
+      return res.json([]);
+    }
+
+    const headerByDoc = new Map(headers.map((h) => [h.docNo, h]));
+
+    const pReq = new sql.Request(pool);
+    docNos.forEach((d, i) => pReq.input(`doc${i}`, sql.VarChar(50), d));
+
+    const pSql = `
+      SELECT *
+      FROM [DocumentProducts iStock] dp
+      WHERE dp.[docNo] IN (${placeholders})
+      ORDER BY CASE dp.[docNo] ${orderByCase} ELSE 999999 END, dp.[id] ASC
+    `;
+
+    const pRs = await pReq.query(pSql);
+    const products = pRs.recordset || [];
+    const rows = products.map((item) => {
+      const h = headerByDoc.get(item.docNo) || {};
+      return {
+        docNo: h.docNo || item.docNo,
+        menuId: h.menuId,
+        menuName: h.menuName,
+        stockOutDate: h.stockOutDate,
+        remark: h.remark,
+        locationCodeFrom: h.locationCodeFrom,
+        binCodeFrom: h.binCodeFrom,
+        createdAt: h.createdAt,
+        createdBy: h.createdBy,
+        status: h.status,
+        locationCodeTo: h.locationCodeTo ?? "",
+        binCodeTo: h.binCodeTo ?? "",
+        uuid: String(item.uuid || "").toLowerCase(),
+        menuType: h.menuId != null ? getMenuType(h.menuId) : undefined,
+        model: item.model,
+        quantity: item.quantity,
+        serialNo: item.serialNo,
+        remarkProduct: item.remark || "",
+      };
+    });
+    return res.json(rows);
+  } catch (err) {
+    return responseError(res, `Failed to get documents: ${err.message}`, 500);
+  }
+};
+
+const SendToApproveDocuments = async (req, res) => {
+  const { docNo } = req.body;
+  if (!docNo) return responseError(res, "docNo is required", 400);
+
+  const docNos = String(docNo)
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (docNos.length === 0) {
+    return responseError(res, "No valid docNo provided", 400);
+  }
+
+  try {
+    const pool = await poolPromise;
+    const placeholders = docNos.map((_, i) => `@doc${i}`).join(", ");
+    const orderByCase = docNos
+      .map((_, i) => `WHEN @doc${i} THEN ${i}`)
+      .join(" ");
+
+    const hReq = new sql.Request(pool);
+    docNos.forEach((d, i) => hReq.input(`doc${i}`, sql.VarChar(50), d));
+
+    const hSql = `
+      SELECT *
+      FROM [Documents iStock] d
+      WHERE d.[docNo] IN (${placeholders})
+      ORDER BY CASE d.[docNo] ${orderByCase} ELSE 999999 END
+    `;
+
+    const hRs = await hReq.query(hSql);
+    const headers = hRs.recordset || [];
+    if (headers.length === 0) {
+      return res.json([]);
+    }
+
+    const headerByDoc = new Map(headers.map((h) => [h.docNo, h]));
+
+    const pReq = new sql.Request(pool);
+    docNos.forEach((d, i) => pReq.input(`doc${i}`, sql.VarChar(50), d));
+
+    const pSql = `
+      SELECT *
+      FROM [DocumentProducts iStock] dp
+      WHERE dp.[docNo] IN (${placeholders})
+      ORDER BY CASE dp.[docNo] ${orderByCase} ELSE 999999 END, dp.[id] ASC
+    `;
+
+    const pRs = await pReq.query(pSql);
+    const products = pRs.recordset || [];
+    const rows = products.map((item) => {
+      const h = headerByDoc.get(item.docNo) || {};
+      return {
+        docNo: h.docNo || item.docNo,
+        menuId: h.menuId,
+        menuName: h.menuName,
+        stockOutDate: h.stockOutDate,
+        remark: h.remark,
+        locationCodeFrom: h.locationCodeFrom,
+        binCodeFrom: h.binCodeFrom,
+        createdAt: h.createdAt,
+        createdBy: h.createdBy,
+        status: h.status,
+        locationCodeTo: h.locationCodeTo ?? "",
+        binCodeTo: h.binCodeTo ?? "",
+        uuid: String(item.uuid || "").toLowerCase(),
+        menuType: h.menuId != null ? getMenuType(h.menuId) : undefined,
+        model: item.model,
+        quantity: item.quantity,
+        serialNo: item.serialNo,
+        remarkProduct: item.remark || "",
+      };
+    });
+    return res.json(rows);
+  } catch (err) {
+    return responseError(res, `Failed to get documents: ${err.message}`, 500);
+  }
+};
+
 module.exports = {
   GetDocuments,
   GetDocumentByDocNo,
   GetDocumentProductsByDocNo,
   GetDocumentsByDocNos,
+  ApproveDocuments,
+  SendToApproveDocuments,
 };
