@@ -6,7 +6,7 @@ const {
 
 const getMenus = async (req, res) => {
   try {
-    const isApprover = req.query.isApprover === true ?? false;
+    const isApprover = req.query.isApprover === "true" ?? false;
     const pool = await poolPromise;
     const result = await pool.request().query(`
         SELECT 

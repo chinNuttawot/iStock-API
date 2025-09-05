@@ -107,7 +107,8 @@ const GetDocuments = async (req, res) => {
         .filter(Boolean);
       if (branches.length > 0) {
         whereParts.push(
-          `d.[branchCode] IN (${branches.map((_, i) => `@br${i}`).join(",")})`
+          `(d.[branchCode] IN (${branches.map((_, i) => `@br${i}`).join(",")})
+            AND d.[status] <> 'Open')`
         );
       }
     }
@@ -439,6 +440,11 @@ const ApproveDocuments = async (req, res) => {
   if (!docNo) return responseError(res, "docNo is required", 400);
   if (!status) return responseError(res, "status is required", 400);
 
+  const normalizedStatus = String(status).trim();
+  const ALLOWED = new Set(["Approved", "Rejected"]);
+  if (!ALLOWED.has(normalizedStatus)) {
+    return responseError(res, "status must be 'Approved' or 'Rejected'", 400);
+  }
   const docNos = String(docNo)
     .split("|")
     .map((s) => s.trim())
@@ -447,76 +453,77 @@ const ApproveDocuments = async (req, res) => {
   if (docNos.length === 0) {
     return responseError(res, "No valid docNo provided", 400);
   }
-
+  const placeholders = docNos.map((_, i) => `@doc${i}`).join(", ");
+  const orderByCase = docNos.map((_, i) => `WHEN @doc${i} THEN ${i}`).join(" ");
+  const CURRENT_STATUS_REQUIRED = "Pending Approval";
+  const NEXT_STATUS = normalizedStatus;
   try {
     const pool = await poolPromise;
-    const placeholders = docNos.map((_, i) => `@doc${i}`).join(", ");
-    const orderByCase = docNos
-      .map((_, i) => `WHEN @doc${i} THEN ${i}`)
-      .join(" ");
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      const reqUpdate = new sql.Request(tx);
+      docNos.forEach((d, i) => reqUpdate.input(`doc${i}`, sql.VarChar(50), d));
+      reqUpdate.input(
+        "currentStatus",
+        sql.VarChar(50),
+        CURRENT_STATUS_REQUIRED
+      );
+      reqUpdate.input("nextStatus", sql.VarChar(50), NEXT_STATUS);
 
-    const hReq = new sql.Request(pool);
-    docNos.forEach((d, i) => hReq.input(`doc${i}`, sql.VarChar(50), d));
+      const updateSql = `
+        ;WITH Target AS (
+          SELECT d.*
+          FROM [Documents iStock] d
+          WHERE d.[docNo] IN (${placeholders})
+            AND d.[status] = @currentStatus
+        )
+        UPDATE Target
+           SET [status] = @nextStatus
+        OUTPUT inserted.[docNo]  AS docNo,
+               deleted.[status]  AS oldStatus,
+               inserted.[status] AS newStatus;
+      `;
+      const uRs = await reqUpdate.query(updateSql);
+      const updated = uRs.recordset || [];
+      const updatedSet = new Set(updated.map((r) => r.docNo));
+      const reqOrder = new sql.Request(tx);
+      docNos.forEach((d, i) => reqOrder.input(`doc${i}`, sql.VarChar(50), d));
+      const orderedSql = `
+        SELECT d.[docNo], d.[status]
+        FROM [Documents iStock] d
+        WHERE d.[docNo] IN (${placeholders})
+        ORDER BY CASE d.[docNo] ${orderByCase} ELSE 999999 END;
+      `;
+      const orderedRs = await reqOrder.query(orderedSql);
+      const currentStatuses = orderedRs.recordset || [];
+      const currentMap = new Map(
+        currentStatuses.map((r) => [r.docNo, r.status])
+      );
+      const skipped = docNos
+        .filter((d) => !updatedSet.has(d))
+        .map((d) => ({
+          docNo: d,
+          reason: currentMap.has(d)
+            ? `Current status is "${currentMap.get(d)}"`
+            : "Not Found",
+        }));
 
-    const hSql = `
-      SELECT *
-      FROM [Documents iStock] d
-      WHERE d.[docNo] IN (${placeholders})
-      ORDER BY CASE d.[docNo] ${orderByCase} ELSE 999999 END
-    `;
-
-    const hRs = await hReq.query(hSql);
-    const headers = hRs.recordset || [];
-    if (headers.length === 0) {
-      return res.json([]);
+      await tx.commit();
+      return responseSuccess(res, `Updated status to ${NEXT_STATUS}`);
+    } catch (err) {
+      await tx.rollback();
+      return responseError(res, `Failed to update: ${err.message}`, 500);
     }
-
-    const headerByDoc = new Map(headers.map((h) => [h.docNo, h]));
-
-    const pReq = new sql.Request(pool);
-    docNos.forEach((d, i) => pReq.input(`doc${i}`, sql.VarChar(50), d));
-
-    const pSql = `
-      SELECT *
-      FROM [DocumentProducts iStock] dp
-      WHERE dp.[docNo] IN (${placeholders})
-      ORDER BY CASE dp.[docNo] ${orderByCase} ELSE 999999 END, dp.[id] ASC
-    `;
-
-    const pRs = await pReq.query(pSql);
-    const products = pRs.recordset || [];
-    const rows = products.map((item) => {
-      const h = headerByDoc.get(item.docNo) || {};
-      return {
-        docNo: h.docNo || item.docNo,
-        menuId: h.menuId,
-        menuName: h.menuName,
-        stockOutDate: h.stockOutDate,
-        remark: h.remark,
-        locationCodeFrom: h.locationCodeFrom,
-        binCodeFrom: h.binCodeFrom,
-        createdAt: h.createdAt,
-        createdBy: h.createdBy,
-        status: h.status,
-        locationCodeTo: h.locationCodeTo ?? "",
-        binCodeTo: h.binCodeTo ?? "",
-        uuid: String(item.uuid || "").toLowerCase(),
-        menuType: h.menuId != null ? getMenuType(h.menuId) : undefined,
-        model: item.model,
-        quantity: item.quantity,
-        serialNo: item.serialNo,
-        remarkProduct: item.remark || "",
-      };
-    });
-    return res.json(rows);
   } catch (err) {
-    return responseError(res, `Failed to get documents: ${err.message}`, 500);
+    return responseError(res, `Database error: ${err.message}`, 500);
   }
 };
 
 const SendToApproveDocuments = async (req, res) => {
-  const { docNo } = req.body;
+  const { docNo, user } = req.body;
   if (!docNo) return responseError(res, "docNo is required", 400);
+  if (!user) return responseError(res, "user is required", 400);
 
   const docNos = String(docNo)
     .split("|")
@@ -527,69 +534,71 @@ const SendToApproveDocuments = async (req, res) => {
     return responseError(res, "No valid docNo provided", 400);
   }
 
+  const placeholders = docNos.map((_, i) => `@doc${i}`).join(", ");
+  const orderByCase = docNos.map((_, i) => `WHEN @doc${i} THEN ${i}`).join(" ");
+  const CURRENT_STATUS = "Open";
+  const NEXT_STATUS = "Pending Approval";
+
   try {
     const pool = await poolPromise;
-    const placeholders = docNos.map((_, i) => `@doc${i}`).join(", ");
-    const orderByCase = docNos
-      .map((_, i) => `WHEN @doc${i} THEN ${i}`)
-      .join(" ");
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      const reqUpdate = new sql.Request(tx);
+      docNos.forEach((d, i) => reqUpdate.input(`doc${i}`, sql.VarChar(50), d));
+      reqUpdate.input("currentStatus", sql.VarChar(50), CURRENT_STATUS);
+      reqUpdate.input("nextStatus", sql.VarChar(50), NEXT_STATUS);
+      reqUpdate.input("user", sql.VarChar(50), user);
+      const updateSql = `
+        ;WITH Target AS (
+          SELECT d.*
+          FROM [Documents iStock] d
+          WHERE d.[docNo] IN (${placeholders})
+            AND d.[status] = @currentStatus
+            AND d.[createdBy] = @user
+        )
+        UPDATE Target
+           SET [status] = @nextStatus
+        OUTPUT inserted.[docNo]  AS docNo,
+               deleted.[status]  AS oldStatus,
+               inserted.[status] AS newStatus;
+      `;
+      const uRs = await reqUpdate.query(updateSql);
+      const updated = uRs.recordset || [];
+      const updatedSet = new Set(updated.map((r) => r.docNo));
+      const reqOrder = new sql.Request(tx);
+      docNos.forEach((d, i) => reqOrder.input(`doc${i}`, sql.VarChar(50), d));
+      const orderedSql = `
+        SELECT d.[docNo], d.[status], d.[createdBy]
+        FROM [Documents iStock] d
+        WHERE d.[docNo] IN (${placeholders})
+        ORDER BY CASE d.[docNo] ${orderByCase} ELSE 999999 END;
+      `;
+      const orderedRs = await reqOrder.query(orderedSql);
+      const currentStatuses = orderedRs.recordset || [];
+      const currentMap = new Map(currentStatuses.map((r) => [r.docNo, r]));
+      const skipped = docNos
+        .filter((d) => !updatedSet.has(d))
+        .map((d) => {
+          const info = currentMap.get(d);
+          return {
+            docNo: d,
+            reason: info
+              ? info.createdBy !== user
+                ? `createdBy mismatch (expected ${user}, found ${info.createdBy})`
+                : `Current status is "${info.status}"`
+              : "Not Found",
+          };
+        });
 
-    const hReq = new sql.Request(pool);
-    docNos.forEach((d, i) => hReq.input(`doc${i}`, sql.VarChar(50), d));
-
-    const hSql = `
-      SELECT *
-      FROM [Documents iStock] d
-      WHERE d.[docNo] IN (${placeholders})
-      ORDER BY CASE d.[docNo] ${orderByCase} ELSE 999999 END
-    `;
-
-    const hRs = await hReq.query(hSql);
-    const headers = hRs.recordset || [];
-    if (headers.length === 0) {
-      return res.json([]);
+      await tx.commit();
+      return responseSuccess(res, `Updated status to ${NEXT_STATUS}`);
+    } catch (err) {
+      await tx.rollback();
+      return responseError(res, `Failed to update: ${err.message}`, 500);
     }
-
-    const headerByDoc = new Map(headers.map((h) => [h.docNo, h]));
-
-    const pReq = new sql.Request(pool);
-    docNos.forEach((d, i) => pReq.input(`doc${i}`, sql.VarChar(50), d));
-
-    const pSql = `
-      SELECT *
-      FROM [DocumentProducts iStock] dp
-      WHERE dp.[docNo] IN (${placeholders})
-      ORDER BY CASE dp.[docNo] ${orderByCase} ELSE 999999 END, dp.[id] ASC
-    `;
-
-    const pRs = await pReq.query(pSql);
-    const products = pRs.recordset || [];
-    const rows = products.map((item) => {
-      const h = headerByDoc.get(item.docNo) || {};
-      return {
-        docNo: h.docNo || item.docNo,
-        menuId: h.menuId,
-        menuName: h.menuName,
-        stockOutDate: h.stockOutDate,
-        remark: h.remark,
-        locationCodeFrom: h.locationCodeFrom,
-        binCodeFrom: h.binCodeFrom,
-        createdAt: h.createdAt,
-        createdBy: h.createdBy,
-        status: h.status,
-        locationCodeTo: h.locationCodeTo ?? "",
-        binCodeTo: h.binCodeTo ?? "",
-        uuid: String(item.uuid || "").toLowerCase(),
-        menuType: h.menuId != null ? getMenuType(h.menuId) : undefined,
-        model: item.model,
-        quantity: item.quantity,
-        serialNo: item.serialNo,
-        remarkProduct: item.remark || "",
-      };
-    });
-    return res.json(rows);
   } catch (err) {
-    return responseError(res, `Failed to get documents: ${err.message}`, 500);
+    return responseError(res, `Database error: ${err.message}`, 500);
   }
 };
 
