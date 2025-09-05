@@ -42,6 +42,7 @@ const {
 const { DeleteDocumentProducts } = require("../DeleteDocumentProducts");
 const { getItemVariant } = require("../ItemVariantWS");
 const { getItemProduct } = require("../ItemProductWS");
+const { GetBagNumber } = require("../Bagnumber");
 
 const APIs = express.Router();
 
@@ -70,6 +71,7 @@ APIs.get("/documents/:docNo", checkToken, GetDocumentByDocNo);
 APIs.get("/documents-send-NAV", checkToken, GetDocumentsByDocNos);
 APIs.get("/ItemVariantWS", checkToken, getItemVariant);
 APIs.get("/ItemProductWS", checkToken, getItemProduct);
+APIs.get("/Bagnumber", checkToken, GetBagNumber);
 
 APIs.post("/upload/image", checkToken, uploadImageSingle, uploadImage);
 APIs.post("/upload/file", checkToken, uploadFileSingle, uploadFile);
