@@ -5,6 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const multer = require("multer");
+// const cors = require("cors"); // เปิดเมื่อทดสอบจาก device/web ข้ามโดเมน
 
 const APIs = require("./Service/api"); // Router อื่น ๆ ของคุณ
 const { errorHandler } = require("./middleware/errorHandler");
@@ -17,9 +18,18 @@ const port = Number(process.env.PORT) || 3000;
 app.disable("x-powered-by");
 app.set("trust proxy", true); // อยู่หลัง Nginx ให้เชื่อ X-Forwarded-*
 
-// ======== Optional CORS (เปิดเมื่อทดสอบจาก device แอป) ========
-// const cors = require("cors");
-// app.use(cors({ origin: "*", credentials: false }));
+// ======== Optional CORS (เปิดเมื่อทดสอบจาก device แอป/เว็บต่างพอร์ต) ========
+// const ALLOW_ORIGIN = process.env.CORS_ORIGIN || "*";
+// app.use(cors({ origin: ALLOW_ORIGIN, credentials: false }));
+// app.use((req, res, next) => {
+//   if (req.method === "OPTIONS") {
+//     res.setHeader("Access-Control-Allow-Origin", ALLOW_ORIGIN);
+//     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+//     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+//     return res.status(204).end();
+//   }
+//   next();
+// });
 
 // ======== Body parsers with larger limits ========
 const BODY_LIMIT = process.env.BODY_LIMIT || "1gb"; // เดิม 200mb → ขยาย
@@ -52,7 +62,21 @@ app.use(
   })
 );
 
+// ======== Helper: base URL หลัง proxy ========
+function getBaseUrl(req) {
+  const proto = (req.headers["x-forwarded-proto"] || req.protocol || "http")
+    .split(",")[0]
+    .trim();
+  const host = (req.headers["x-forwarded-host"] || req.headers.host || "")
+    .split(",")[0]
+    .trim();
+  return `${proto}://${host}`;
+}
+
 // ======== Multer for multipart (upload multi) ========
+const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB || 200); // 200MB/ไฟล์
+const MAX_FILES_PER_REQ = Number(process.env.MAX_FILES_PER_REQ || 20);
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, config.UPLOAD_DIR),
   filename: (req, file, cb) => {
@@ -62,34 +86,51 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}_${safe}`);
   },
 });
+
 const upload = multer({
   storage,
   limits: {
-    fileSize: 200 * 1024 * 1024, // 200MB/ไฟล์ (ปรับได้)
-    files: 20, // สูงสุด 20 ไฟล์/คำขอ
+    fileSize: MAX_FILE_SIZE_MB * 1024 * 1024,
+    files: MAX_FILES_PER_REQ,
   },
 });
 
 // ✅ อัปโหลดหลายไฟล์: POST /api/upload/multi (field name = "files")
-app.post("/api/upload/multi", upload.array("files", 20), (req, res) => {
-  const files = (req.files || []).map((f) => ({
-    name: f.filename,
-    size: f.size,
-    mime: f.mimetype,
-    url: `/files/${f.filename}`,
-  }));
-  return res.json({ ok: true, count: files.length, files });
-});
+app.post(
+  "/api/upload/multi",
+  upload.array("files", MAX_FILES_PER_REQ),
+  (req, res) => {
+    const base = getBaseUrl(req);
+    const files = (req.files || []).map((f) => ({
+      name: f.filename,
+      size: f.size,
+      mime: f.mimetype,
+      url: `${base}/files/${f.filename}`, // absolute URL ใช้ได้หลัง Nginx
+    }));
+    return res.json({ ok: true, count: files.length, files });
+  }
+);
 
 // ======== Health check ========
+app.get("/health", (req, res) => {
+  res.json({
+    ok: true,
+    uptime: process.uptime(),
+    now: new Date().toISOString(),
+  });
+});
 app.get("/healthz", (req, res) => {
-  res.json({ ok: true, uptime: process.uptime() });
+  res.json({
+    ok: true,
+    uptime: process.uptime(),
+    now: new Date().toISOString(),
+  });
 });
 
 // ======== Mount APIs router (ของคุณ) ========
 app.use("/api", APIs);
 
-// ======== Friendly 413 handler (body-parser / multer) ========
+// ======== Friendly 413/ข้อจำกัดอัปโหลด (body-parser / multer) ========
 app.use((err, req, res, next) => {
   // body-parser เกิน limit -> 413
   if (err && (err.type === "entity.too.large" || err.status === 413)) {
@@ -105,7 +146,15 @@ app.use((err, req, res, next) => {
     return res.status(413).json({
       ok: false,
       message: "File too large.",
-      maxFileSize: "200MB",
+      maxFileSize: `${MAX_FILE_SIZE_MB}MB`,
+    });
+  }
+  // multer เกินจำนวนไฟล์
+  if (err && err.code === "LIMIT_FILE_COUNT") {
+    return res.status(413).json({
+      ok: false,
+      message: "Too many files.",
+      maxFiles: MAX_FILES_PER_REQ,
     });
   }
   return next(err);
@@ -122,8 +171,7 @@ const server = app.listen(port, "0.0.0.0", () => {
   );
 });
 
-// Timeouts สำหรับงานอัปโหลด/ดาวน์โหลดนาน ๆ
-// Node v18+: ใช้พวกนี้ได้
+// Timeouts สำหรับงานอัปโหลด/ดาวน์โหลดนาน ๆ (Node v18+)
 server.requestTimeout = 10 * 60 * 1000; // 10 นาที
 server.headersTimeout = 11 * 60 * 1000; // headers เผื่อมากกว่าเล็กน้อย
 server.keepAliveTimeout = 120 * 1000; // keep-alive 120s
