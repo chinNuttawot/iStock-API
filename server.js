@@ -87,30 +87,6 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({
-  storage,
-  limits: {
-    fileSize: MAX_FILE_SIZE_MB * 1024 * 1024,
-    files: MAX_FILES_PER_REQ,
-  },
-});
-
-// ✅ อัปโหลดหลายไฟล์: POST /api/upload/multi (field name = "files")
-app.post(
-  "/api/upload/multi",
-  upload.array("files", MAX_FILES_PER_REQ),
-  (req, res) => {
-    const base = getBaseUrl(req);
-    const files = (req.files || []).map((f) => ({
-      name: f.filename,
-      size: f.size,
-      mime: f.mimetype,
-      url: `${base}/files/${f.filename}`, // absolute URL ใช้ได้หลัง Nginx
-    }));
-    return res.json({ ok: true, count: files.length, files });
-  }
-);
-
 // ======== Health check ========
 app.get("/health", (req, res) => {
   res.json({
