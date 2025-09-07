@@ -40,9 +40,11 @@ function getMenuType(menuId) {
   }
 }
 
+const odataQuote = (s) => `'${String(s).replace(/'/g, "''")}'`;
+
 const getCardList = async (req, res) => {
   try {
-    let { menuId, branchCode } = req.query;
+    let { menuId, branchCode, status } = req.query;
     const isApprover = req.query.isApprover === "true" ?? false;
     menuId = Number(menuId);
     if (isNaN(menuId)) {
@@ -59,11 +61,37 @@ const getCardList = async (req, res) => {
     let _branchCode = `branchCode eq '${branchCode}'`;
 
     if (isApprover) {
+      let _Status = [];
+      if (status) {
+        if (status === "All") {
+          _Status = "Pending Approval|Approved|Rejected"
+            .split("|")
+            .map((b) => b.trim())
+            .filter(Boolean);
+        } else {
+          _Status = status
+            .split("|")
+            .map((b) => b.trim())
+            .filter(Boolean);
+        }
+      } 
+
       const branches = branchCode
         .split("|")
         .map((b) => b.trim())
         .filter(Boolean);
-      _branchCode = branches.map((b) => `branchCode eq '${b}'`).join(" or ");
+      const branchExpr = branches.length
+        ? `(${branches
+            .map((b) => `branchCode eq ${odataQuote(b)}`)
+            .join(" or ")})`
+        : "";
+
+      const statusExpr =
+        _Status.length > 0
+          ? `(${_Status.map((s) => `status eq ${odataQuote(s)}`).join(" or ")})`
+          : "";
+
+      _branchCode = [branchExpr, statusExpr].filter(Boolean).join(" and ");
     }
 
     const navData = await getCardListNAV({ menuId, branchCode: _branchCode });

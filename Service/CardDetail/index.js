@@ -62,7 +62,11 @@ const getCardDetail = async (req, res) => {
       picURL: item.picURL,
     }));
 
-    return responseSuccess(res, "Card Detail list fetched", formatted);
+    return responseSuccess(
+      res,
+      `count_${navData[navData.length - 1]?.count || 0}`,
+      formatted
+    );
   } catch (error) {
     return responseError(res, "Failed to get card detail");
   }
