@@ -14,8 +14,15 @@ function parseThaiDateToJSDate(ddmmyyyy_thai) {
     .map((v) => parseInt(v, 10));
   if (!dd || !mm || !yyyyThai) return null;
   const yyyy = yyyyThai - 543;
-  // ใช้ local time เพื่อให้ CAST(date) ใน SQL จับวันเดียวกันแน่นอน
-  return new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
+  return new Date(yyyy, mm - 1, dd, 0, 0, 0, 0); // local midnight
+}
+
+/** แปลง JS Date (local) -> 'YYYY-MM-DD' (local) เพื่อกัน timezone shift */
+function formatJSDateToYMDLocal(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 /** สร้าง ORDER BY ที่ปลอดภัย */
@@ -34,6 +41,42 @@ function buildOrderBy(sortBy = "createdAt", sortDir = "DESC") {
   const dir = String(sortDir).toUpperCase() === "ASC" ? "ASC" : "DESC";
   return { col, dir };
 }
+
+/**
+ * NORMALIZE_DATE_SQL(col):
+ * รองรับคอลัมน์ที่เป็น nvarchar ทั้งกรณี AD/Persists เป็น datetime,
+ * และกรณีเก็บเป็น 'พ.ศ.-MM-dd' เช่น '2568-09-05' (อาจมีเวลา)
+ * ลอจิก:
+ *   1) ถ้า TRY_CONVERT(date, col) ได้ → ใช้ทันที
+ *   2) ถ้า TRY_CONVERT(date, LEFT(col,10)) ได้ → ใช้ทันที
+ *   3) ไม่ได้ทั้งคู่ → ตีความซ้าย 10 ตัวเป็น 'yyyy-MM-dd'
+ *      แยกปี/เดือน/วัน แล้ว DATEFROMPARTS(ปี - 543 ถ้า > 2200, เดือน, วัน)
+ */
+const NORMALIZE_DATE_SQL = (colExpr) => `
+  CASE
+    WHEN TRY_CONVERT(date, ${colExpr}) IS NOT NULL
+      THEN TRY_CONVERT(date, ${colExpr})
+    WHEN TRY_CONVERT(date, LEFT(LTRIM(RTRIM(CONVERT(nvarchar(50), ${colExpr}))), 10)) IS NOT NULL
+      THEN TRY_CONVERT(date, LEFT(LTRIM(RTRIM(CONVERT(nvarchar(50), ${colExpr}))), 10))
+    ELSE
+      CASE
+        WHEN TRY_CONVERT(int, SUBSTRING(LEFT(LTRIM(RTRIM(CONVERT(nvarchar(50), ${colExpr}))), 10), 1, 4)) IS NOT NULL
+         AND TRY_CONVERT(int, SUBSTRING(LEFT(LTRIM(RTRIM(CONVERT(nvarchar(50), ${colExpr}))), 10), 6, 2)) IS NOT NULL
+         AND TRY_CONVERT(int, SUBSTRING(LEFT(LTRIM(RTRIM(CONVERT(nvarchar(50), ${colExpr}))), 10), 9, 2)) IS NOT NULL
+        THEN
+          DATEFROMPARTS(
+            CASE
+              WHEN TRY_CONVERT(int, SUBSTRING(LEFT(LTRIM(RTRIM(CONVERT(nvarchar(50), ${colExpr}))), 10), 1, 4)) > 2200
+                THEN TRY_CONVERT(int, SUBSTRING(LEFT(LTRIM(RTRIM(CONVERT(nvarchar(50), ${colExpr}))), 10), 1, 4)) - 543
+              ELSE TRY_CONVERT(int, SUBSTRING(LEFT(LTRIM(RTRIM(CONVERT(nvarchar(50), ${colExpr}))), 10), 1, 4))
+            END,
+            TRY_CONVERT(int, SUBSTRING(LEFT(LTRIM(RTRIM(CONVERT(nvarchar(50), ${colExpr}))), 10), 6, 2)),
+            TRY_CONVERT(int, SUBSTRING(LEFT(LTRIM(RTRIM(CONVERT(nvarchar(50), ${colExpr}))), 10), 9, 2))
+          )
+        ELSE NULL
+      END
+  END
+`;
 
 /** GET /documents?... */
 const GetDocuments = async (req, res) => {
@@ -56,27 +99,33 @@ const GetDocuments = async (req, res) => {
     const binCodeFrom = req.query.binCodeFrom ?? null;
     const createdBy = req.query.createdBy?.trim() || null;
 
-    // ✅ ใช้ createdAt (ไทย DD/MM/พ.ศ.) เทียบเฉพาะ "วัน" เดียว
-    const createdAtTH = req.query.createdAt ?? null;
-    let createdDateOnly = null;
-    if (createdAtTH) {
-      const d = parseThaiDateToJSDate(createdAtTH);
+    // ✅ stockOutDate (ไทย DD/MM/พ.ศ.) – เทียบ "วันเดียว"
+    const stockOutDateTH = req.query.stockOutDate ?? null;
+    let stockDateExactStr = null; // 'YYYY-MM-DD' (local)
+    if (stockOutDateTH) {
+      const d = parseThaiDateToJSDate(stockOutDateTH);
       if (!d || isNaN(d.getTime())) {
         return responseError(
           res,
-          "รูปแบบวันที่ createdAt ไม่ถูกต้อง (ควรเป็น DD/MM/พ.ศ.)",
+          "รูปแบบวันที่ stockOutDate ไม่ถูกต้อง (ควรเป็น DD/MM/พ.ศ.)",
           400
         );
       }
-      createdDateOnly = d;
+      stockDateExactStr = formatJSDateToYMDLocal(d);
     }
 
-    // stockOutDate (ไทย DD/MM/พ.ศ.)
+    // ช่วงวันที่สำหรับ stockOutDate (ไทย DD/MM/พ.ศ.)
     const stockDateFromTH = req.query.stockDateFromTH
       ? parseThaiDateToJSDate(req.query.stockDateFromTH)
       : null;
     const stockDateToTH = req.query.stockDateToTH
       ? parseThaiDateToJSDate(req.query.stockDateToTH)
+      : null;
+    const stockFromStr = stockDateFromTH
+      ? formatJSDateToYMDLocal(stockDateFromTH)
+      : null;
+    const stockToStr = stockDateToTH
+      ? formatJSDateToYMDLocal(stockDateToTH)
       : null;
 
     const { col: sortCol, dir: sortDir } = buildOrderBy(
@@ -89,37 +138,56 @@ const GetDocuments = async (req, res) => {
     const whereParts = [];
     if (status) whereParts.push("d.[status] = @status");
 
-    // docNo: insensitive + prefix match
     if (docNo) whereParts.push("UPPER(d.[docNo]) LIKE UPPER(@docNo)");
-
     if (menuId !== null && !Number.isNaN(menuId))
       whereParts.push("d.[menuId] = @menuId");
     if (locationCodeFrom)
       whereParts.push("d.[locationCodeFrom] = @locationCodeFrom");
     if (binCodeFrom) whereParts.push("d.[binCodeFrom] = @binCodeFrom");
 
-    if (createdBy && !isApprover) whereParts.push("d.[createdBy] = @createdBy");
+    // createdBy ใช้เฉพาะเมื่อไม่ใช่ approver
+    if (!isApprover && createdBy) whereParts.push("d.[createdBy] = @createdBy");
 
+    // approver → สนใจเฉพาะ branchCode (หลายค่า, | หรือ ,) + status <> 'Open'
+    let branches = [];
     if (isApprover && branchCode) {
-      const branches = branchCode
-        .split("|")
+      branches = String(branchCode)
+        .split(/[|,]/)
         .map((b) => b.trim())
         .filter(Boolean);
       if (branches.length > 0) {
         whereParts.push(
-          `(d.[branchCode] IN (${branches.map((_, i) => `@br${i}`).join(",")})
-            AND d.[status] <> 'Open')`
+          `(d.[branchCode] IN (${branches
+            .map((_, i) => `@br${i}`)
+            .join(",")}) AND d.[status] <> 'Open')`
         );
       }
     }
 
-    // ✅ createdAt เฉพาะวันเดียว (กัน timezone ด้วย CAST(date))
-    if (createdDateOnly) {
-      whereParts.push("CAST(d.[createdAt] AS date) = @createdDate");
+    // ✅ stockOutDate = วันเดียว (normalize BE→AD) เทียบกับ CONVERT(date, @stockDateStr)
+    if (stockDateExactStr) {
+      whereParts.push(
+        `${NORMALIZE_DATE_SQL(
+          "d.[stockOutDate]"
+        )} = CONVERT(date, @stockDateStr)`
+      );
     }
 
-    if (stockDateFromTH) whereParts.push("d.[stockOutDate] >= @stockFrom");
-    if (stockDateToTH) whereParts.push("d.[stockOutDate] <= @stockTo");
+    // ✅ stockOutDate แบบช่วง
+    if (stockFromStr) {
+      whereParts.push(
+        `${NORMALIZE_DATE_SQL(
+          "d.[stockOutDate]"
+        )} >= CONVERT(date, @stockFromStr)`
+      );
+    }
+    if (stockToStr) {
+      whereParts.push(
+        `${NORMALIZE_DATE_SQL(
+          "d.[stockOutDate]"
+        )} <= CONVERT(date, @stockToStr)`
+      );
+    }
 
     const whereSql = whereParts.length
       ? `WHERE ${whereParts.join(" AND ")}`
@@ -129,9 +197,7 @@ const GetDocuments = async (req, res) => {
     const listReq = new sql.Request(pool);
 
     if (status) listReq.input("status", sql.NVarChar(50), status);
-
-    if (docNo) listReq.input("docNo", sql.NVarChar(50), `${docNo}%`); // prefix match
-
+    if (docNo) listReq.input("docNo", sql.NVarChar(50), `${docNo}%`);
     if (menuId !== null && !Number.isNaN(menuId))
       listReq.input("menuId", sql.Int, menuId);
     if (locationCodeFrom)
@@ -139,26 +205,21 @@ const GetDocuments = async (req, res) => {
     if (binCodeFrom)
       listReq.input("binCodeFrom", sql.NVarChar(50), binCodeFrom);
 
-    if (createdBy && !isApprover)
+    if (!isApprover && createdBy)
       listReq.input("createdBy", sql.NVarChar(100), createdBy);
 
-    if (isApprover && branchCode) {
-      const branches = branchCode
-        .split("|")
-        .map((b) => b.trim())
-        .filter(Boolean);
+    if (isApprover && branches.length > 0) {
       branches.forEach((br, i) =>
         listReq.input(`br${i}`, sql.NVarChar(50), br)
       );
     }
 
-    // ✅ bind createdAt (date only)
-    if (createdDateOnly) {
-      listReq.input("createdDate", sql.Date, createdDateOnly);
-    }
-
-    if (stockDateFromTH) listReq.input("stockFrom", sql.Date, stockDateFromTH);
-    if (stockDateToTH) listReq.input("stockTo", sql.Date, stockDateToTH);
+    // ✅ bind เป็นสตริงวันที่ (กัน timezone 100%)
+    if (stockDateExactStr)
+      listReq.input("stockDateStr", sql.NVarChar(10), stockDateExactStr);
+    if (stockFromStr)
+      listReq.input("stockFromStr", sql.NVarChar(10), stockFromStr);
+    if (stockToStr) listReq.input("stockToStr", sql.NVarChar(10), stockToStr);
 
     listReq.input("limit", sql.Int, pageSize);
     listReq.input("offset", sql.Int, offset);
