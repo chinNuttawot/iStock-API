@@ -1,16 +1,18 @@
 // utils/file.js
 const path = require("path");
 const mime = require("mime-types");
+require("dotenv").config();
 
 /** สร้าง response object ของไฟล์ */
 function buildFileResponse(req, filename, file) {
+  const port = Number(process.env.PORT_HTTPS) || 8443;
   const host = `${req.protocol}://${req.get("host")}`;
   return {
     originalName: file?.originalname,
     mime: file?.mimetype,
     size: file?.size,
     filename,
-    url: `${host}/files/${filename}`,
+    url: `${host}:${port}/files/${filename}`,
   };
 }
 
