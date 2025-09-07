@@ -69,7 +69,7 @@ const getCardDetailListNAV = async (item) => {
     //สแกนรับ
     if (menuId === 0) {
       res = await axios.get(
-        `${NAV_URL_TRANSFER_ORDER_DETAIL_WS}?$filter=docNo eq '${docNo}'`,
+        `${NAV_URL_TRANSFER_ORDER_DETAIL_WS}?$count=true&$filter=docNo eq '${docNo}'`,
         {
           headers: headersNAV,
           timeout: 10000,
@@ -78,7 +78,13 @@ const getCardDetailListNAV = async (item) => {
       );
     }
 
-    const data = res.data?.value ?? res.data ?? [];
+    const data = (Array.isArray(res?.data?.value) ? res.data.value : []).concat(
+      {
+        count:
+          Number(res?.data?.["@odata.count"]) || res?.data?.value?.length || 0,
+      }
+    );
+
     return Array.isArray(data) ? data : [];
   } catch (err) {
     throw new Error("Error get CardList NAV");
