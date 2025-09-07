@@ -21,7 +21,7 @@ function parseThaiDateToJSDate(ddmmyyyy_thai) {
 function formatJSDateToYMDLocal(d) {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
+  const dd = String(d.getDate()).toString().padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
 
@@ -138,7 +138,7 @@ const GetDocuments = async (req, res) => {
     const whereParts = [];
     if (status) whereParts.push("d.[status] = @status");
 
-    if (docNo) whereParts.push("UPPER(d.[docNo]) LIKE UPPER(@docNo)");
+    if (docNo) whereParts.push("UPPER(d.[docNo]) LIKE UPPER(@docNoContains)");
     if (menuId !== null && !Number.isNaN(menuId))
       whereParts.push("d.[menuId] = @menuId");
     if (locationCodeFrom)
@@ -197,7 +197,7 @@ const GetDocuments = async (req, res) => {
     const listReq = new sql.Request(pool);
 
     if (status) listReq.input("status", sql.NVarChar(50), status);
-    if (docNo) listReq.input("docNo", sql.NVarChar(50), `${docNo}%`);
+    if (docNo) listReq.input("docNoContains", sql.NVarChar(100), `%${docNo}%`);
     if (menuId !== null && !Number.isNaN(menuId))
       listReq.input("menuId", sql.Int, menuId);
     if (locationCodeFrom)
