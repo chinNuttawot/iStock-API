@@ -339,7 +339,7 @@ const GetDocumentByDocNo = async (req, res) => {
 
     const products = (pRs.recordset || []).map((item, idx) => ({
       id: String(idx + 1),
-      docNo: item.productCode,
+      docNo: item.docNo,
       menuType: getMenuType(header.menuId), // อิงจาก header
       menuId: header.menuId,
       model: item.model,
@@ -396,7 +396,7 @@ const GetDocumentProductsByDocNo = async (req, res) => {
 
     const recordset = (pRs.recordset || []).map((item, idx) => ({
       id: String(idx + 1),
-      docNo: item.docNo,
+      docNo: item.productCode,
       menuType: getMenuType(item.menuId),
       menuId: item.menuId,
       model: item.model,
