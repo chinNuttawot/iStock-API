@@ -43,6 +43,7 @@ const { DeleteDocumentProducts } = require("../DeleteDocumentProducts");
 const { getItemVariant } = require("../ItemVariantWS");
 const { getItemProduct } = require("../ItemProductWS");
 const { GetBagNumber } = require("../Bagnumber");
+const { CreateTransactionHistory, GetTransactionHistory } = require("../TransactionHistory");
 
 const APIs = express.Router();
 
@@ -72,6 +73,7 @@ APIs.get("/documents-send-NAV", checkToken, GetDocumentsByDocNos);
 APIs.get("/ItemVariantWS", checkToken, getItemVariant);
 APIs.get("/ItemProductWS", checkToken, getItemProduct);
 APIs.get("/Bagnumber", checkToken, GetBagNumber);
+APIs.get("/GetTransactionHistory", checkToken, GetTransactionHistory);
 
 APIs.post("/upload/image", checkToken, uploadImageSingle, uploadImage);
 APIs.post("/upload/file", checkToken, uploadFileSingle, uploadFile);
@@ -80,6 +82,7 @@ APIs.post("/CreateDocument", checkToken, CreateDocumentFlowSave);
 APIs.post("/document-products-delete", checkToken, DeleteDocumentProducts);
 APIs.post("/ApproveDocuments", checkToken, ApproveDocuments);
 APIs.post("/SendToApproveDocuments", checkToken, SendToApproveDocuments);
+APIs.post("/transaction-history", checkToken, CreateTransactionHistory);
 
 APIs.get("/files-list", checkToken, listUploadedFiles);
 APIs.delete("/files/:name", checkToken, deleteFile);

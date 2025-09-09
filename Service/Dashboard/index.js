@@ -7,13 +7,12 @@ const {
 
 // แผนที่ menuId -> กลุ่ม (ปรับตามระบบจริง)
 const MENU_GROUP_MAP = {
-  0: "สแกนรับ",
   1: "สแกนออก",
   2: "สแกนโอนย้าย",
   3: "สแกนตรวจนับ",
 };
 
-const BASE_GROUPS = ["สแกนรับ", "สแกนออก", "สแกนโอนย้าย", "สแกนตรวจนับ"];
+const BASE_GROUPS = ["สแกนออก", "สแกนโอนย้าย", "สแกนตรวจนับ"];
 const TRACK_STATUSES = ["Pending Approval", "Approved", "Rejected"];
 
 function makeEmptyDashboard() {
