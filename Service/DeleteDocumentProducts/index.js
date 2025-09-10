@@ -10,8 +10,8 @@ const {
  * Body:
  * {
  *   "items": [
- *     {"uuid":"...", "docNo":"..."},
- *     {"uuid":"...", "docNo":"..."}
+ *     {"uuid":"...", "productCode":"..."},
+ *     {"uuid":"...", "productCode":"..."}
  *   ]
  * }
  */
@@ -27,14 +27,14 @@ const DeleteDocumentProducts = async (req, res) => {
       (x) =>
         !x ||
         typeof x.uuid !== "string" ||
-        typeof x.docNo !== "string" ||
-        !x.docNo ||
+        typeof x.productCode !== "string" ||
+        !x.productCode ||
         !x.uuid
     );
     if (bad) {
       return responseError(
         res,
-        "Each item must be an object with string fields: { uuid, docNo }",
+        "Each item must be an object with string fields: { uuid, productCode }",
         400
       );
     }
@@ -51,26 +51,26 @@ const DeleteDocumentProducts = async (req, res) => {
       // วิธีหลัก: ใช้ OPENJSON ลบทีเดียว (ต้องการ SQL Server 2016+ / compatibility level >= 130)
       const result = await request.query(`
         WITH pairs AS (
-          SELECT j.uuid, j.docNo
+          SELECT j.uuid, j.productCode
           FROM OPENJSON(@jsonItems)
           WITH (
             uuid NVARCHAR(64) '$.uuid',
-            docNo NVARCHAR(64) '$.docNo'
+            productCode NVARCHAR(64) '$.productCode'
           ) j
         )
         DELETE dp
-        OUTPUT DELETED.uuid AS uuid, DELETED.docNo AS docNo
+        OUTPUT DELETED.uuid AS uuid, DELETED.productCode AS productCode
         FROM [DocumentProducts iStock] AS dp
         INNER JOIN pairs p
           ON p.uuid = dp.[uuid]
-         AND p.docNo = dp.[docNo];
+         AND p.productCode = dp.[productCode];
       `);
 
       await tx.commit();
 
       const deleted = result?.recordset || [];
-      const key = new Set(deleted.map((r) => `${r.uuid}||${r.docNo}`));
-      const notFound = items.filter((x) => !key.has(`${x.uuid}||${x.docNo}`));
+      const key = new Set(deleted.map((r) => `${r.uuid}||${r.productCode}`));
+      const notFound = items.filter((x) => !key.has(`${x.uuid}||${x.productCode}`));
 
       return responseSuccess(res, "Deleted successfully", {
         requested: items.length,
@@ -87,21 +87,21 @@ const DeleteDocumentProducts = async (req, res) => {
         const deletedItems = [];
         const notFound = [];
 
-        for (const { uuid, docNo } of items) {
+        for (const { uuid, productCode } of items) {
           const r = new sql.Request(tx);
           r.input("uuid", sql.NVarChar(64), uuid);
-          r.input("docNo", sql.NVarChar(64), docNo);
+          r.input("productCode", sql.NVarChar(64), productCode);
           const q = await r.query(`
             DELETE FROM [DocumentProducts iStock]
-            WHERE [uuid] = @uuid AND [docNo] = @docNo;
+            WHERE [uuid] = @uuid AND [productCode] = @productCode;
             SELECT @@ROWCOUNT AS affected;
           `);
           const affected = q?.recordset?.[0]?.affected || 0;
           if (affected > 0) {
             deleted += affected;
-            deletedItems.push({ uuid, docNo });
+            deletedItems.push({ uuid, productCode });
           } else {
-            notFound.push({ uuid, docNo });
+            notFound.push({ uuid, productCode });
           }
         }
 
