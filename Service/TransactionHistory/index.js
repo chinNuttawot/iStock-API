@@ -4,6 +4,75 @@ const {
   responseSuccess,
   responseError,
 } = require("../../utils/responseHelper");
+const { formatDate, formatDateTime, getMenuType } = require("../Card");
+
+const dateLabelByMenuId = (menuId) => {
+  if (menuId === 0) return "วันที่ส่งสินค้า";
+  if (menuId === 1) return "วันที่ตัดสินค้า";
+  if (menuId === 2) return "วันที่โอนย้าย";
+  if (menuId === 3) return "วันที่ตรวจนับ";
+};
+
+function transformDocuments(rows = []) {
+  return rows.map((item, idx) => {
+    const product = Array.isArray(item.product) ? item.product : [];
+
+    return {
+      id: String(idx + 1),
+      docNo: item?.docNo ?? "",
+      menuType: getMenuType(item?.menuId),
+      menuId: item?.menuId ?? null,
+      branchCode: item?.branchCode ?? "",
+      status: item?.status ?? "",
+      date: `สร้างวันที่ ${formatDateTime(item?.createdAt)}`,
+      product: product.map((item2, idx) => ({
+        id: String(idx + 1),
+        docNo: item2.productCode,
+        menuType: getMenuType(item.menuId),
+        menuId: item2.menuId,
+        model: item2.model,
+        uuid: item2.uuid,
+        picURL: item2.picURL,
+        details: [
+          { label: "จำนวน", value: item2.quantity },
+          { label: "รหัสแบบ", value: item2.model },
+          { label: "serial No.", value: item2.serialNo },
+          { label: "หมายเหตุ", value: item2.remark || "-" },
+        ],
+      })),
+      details: [
+        {
+          label: dateLabelByMenuId(item?.menuId),
+          value: formatDate(item?.stockOutDate),
+        },
+        ...(item?.menuId !== 2
+          ? [
+              { label: "คลังหลัก", value: `${item?.locationCodeFrom ?? ""}` },
+              { label: "คลังย่อย", value: `${item?.binCodeFrom ?? ""}` },
+            ]
+          : [
+              {
+                label: "คลังหลัก (ต้นทาง)",
+                value: `${item?.locationCodeFrom ?? ""}`,
+              },
+              {
+                label: "คลังย่อย (ต้นทาง)",
+                value: `${item?.binCodeFrom ?? ""}`,
+              },
+              {
+                label: "คลังหลัก (ปลายทาง)",
+                value: `${item?.locationCodeTo ?? ""}`,
+              },
+              {
+                label: "คลังย่อย (ปลายทาง)",
+                value: `${item?.binCodeTo ?? ""}`,
+              },
+            ]),
+        { label: "หมายเหตุ", value: item?.remark || "-" },
+      ],
+    };
+  });
+}
 
 /** helper: clamp string length */
 const clamp = (s, n) => (s == null ? s : String(s).slice(0, n));
@@ -225,7 +294,11 @@ const GetTransactionHistory = async (req, res) => {
       return { ...row, product: parsedProduct };
     });
 
-    return responseSuccess(res, "Get transaction history success", rows);
+    return responseSuccess(
+      res,
+      "Get transaction history success",
+      transformDocuments(rows)
+    );
   } catch (err) {
     console.error("GetTransactionHistory error:", err);
     if (!res.headersSent) {
