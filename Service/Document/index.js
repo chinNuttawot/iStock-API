@@ -436,7 +436,8 @@ const GetDocumentByDocNoForTransactionHistory = async (req, res) => {
           dp.[model],
           dp.[quantity],
           dp.[serialNo],
-          dp.[remark]
+          dp.[remark],
+          dp.[picURL]
         FROM [DocumentProducts iStock] dp
         WHERE dp.[docNo] = @docNo
         ORDER BY dp.[id] ASC
@@ -450,6 +451,7 @@ const GetDocumentByDocNoForTransactionHistory = async (req, res) => {
       quantity: Number(item.quantity ?? 0), // บังคับ number
       serialNo: item.serialNo ?? "",
       remark: item.remark ?? "",
+      picURL: item.picURL ?? "",
     }));
 
     return responseSuccess(res, "Get document successfully", {
