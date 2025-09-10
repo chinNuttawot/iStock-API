@@ -6,17 +6,18 @@ const {
 } = require("../../utils/responseHelper");
 const { formatDate, formatDateTime, getMenuType } = require("../Card");
 
+/** ป้ายวันที่ตามเมนู */
 const dateLabelByMenuId = (menuId) => {
   if (menuId === 0) return "วันที่ส่งสินค้า";
   if (menuId === 1) return "วันที่ตัดสินค้า";
   if (menuId === 2) return "วันที่โอนย้าย";
   if (menuId === 3) return "วันที่ตรวจนับ";
+  return "วันที่เอกสาร";
 };
 
 function transformDocuments(rows = []) {
   return rows.map((item, idx) => {
     const product = Array.isArray(item.product) ? item.product : [];
-
     return {
       id: String(idx + 1),
       docNo: item?.docNo ?? "",
@@ -25,8 +26,8 @@ function transformDocuments(rows = []) {
       branchCode: item?.branchCode ?? "",
       status: item?.status ?? "",
       date: `สร้างวันที่ ${formatDateTime(item?.createdAt)}`,
-      product: product.map((item2, idx) => ({
-        id: String(idx + 1),
+      product: product.map((item2, idx2) => ({
+        id: String(idx2 + 1),
         docNo: item2.productCode,
         menuType: getMenuType(item.menuId),
         menuId: item2.menuId,
@@ -138,7 +139,7 @@ const CreateTransactionHistory = async (req, res) => {
       .input("docNo", sql.NVarChar(50), clamp(docNo, 50))
       .input("menuId", sql.Int, menuId ?? null)
       .input("menuName", sql.NVarChar(200), clamp(menuName, 200))
-      .input("stockOutDate", sql.DateTime, stockOutDateJS ?? null)
+      .input("stockOutDate", sql.DateTime2, stockOutDateJS ?? null)
       .input("remark", sql.NVarChar(500), clamp(remark, 500))
       .input("locationCodeFrom", sql.NVarChar(50), clamp(locationCodeFrom, 50))
       .input("binCodeFrom", sql.NVarChar(50), clamp(binCodeFrom, 50))
@@ -180,7 +181,7 @@ const CreateTransactionHistory = async (req, res) => {
  *   - status       (optional)
  *   - dateFrom     (optional, ISO; filter createdAt >= dateFrom)
  *   - dateTo       (optional, ISO;  filter createdAt <  dateTo)
- *   - stockOutDate (optional, DD/MM/YYYY พ.ศ./ค.ศ.; เทียบวันเดียว)
+ *   - stockOutDate (optional, DD/MM/YYYY พ.ศ./ค.ศ.; เทียบวันเดียวตามเวลาไทย)
  *   - sortBy       (optional: createdAt|docNo|stockOutDate; default createdAt)
  *   - sortDir      (optional: ASC|DESC; default DESC)
  */
@@ -193,7 +194,7 @@ const GetTransactionHistory = async (req, res) => {
       status,
       dateFrom,
       dateTo,
-      stockOutDate, // DD/MM/YYYY
+      stockOutDate, // DD/MM/YYYY (TH/EN calendar)
       sortBy = "createdAt",
       sortDir = "DESC",
     } = req.query || {};
@@ -219,11 +220,13 @@ const GetTransactionHistory = async (req, res) => {
     if (dateFrom) whereParts.push("[createdAt] >= @dateFrom");
     if (dateTo) whereParts.push("[createdAt] <  @dateTo");
 
-    // ใช้ DATEFROMPARTS เพื่อเทียบ 'วันเดียว' ของ stockOutDate โดยไม่โดน timezone
-    // ตัวแปร @y, @m, @d จะถูก bind เฉพาะเมื่อ client ส่ง stockOutDate มา
+    // ✅ เทียบ "วันเดียว" ตามเวลาไทย (+07:00)
+    // อธิบาย:
+    //   - ฝั่งคอลัมน์: แปลงจาก UTC → +07:00 แล้ว CAST เป็น DATE
+    //   - ฝั่งพารามิเตอร์: ใช้ DATEFROMPARTS(@y,@m,@d) จากเลขปี/เดือน/วัน (กัน timezone shift ของ driver)
     if (stockOutDate) {
       whereParts.push(
-        "CAST([stockOutDate] AS DATE) = DATEFROMPARTS(@y, @m, @d)"
+        "CAST(SWITCHOFFSET([stockOutDate] AT TIME ZONE 'UTC', '+07:00') AS DATE) = DATEFROMPARTS(@y, @m, @d)"
       );
     }
 
@@ -249,8 +252,7 @@ const GetTransactionHistory = async (req, res) => {
     }
 
     if (stockOutDate) {
-      // แปลง 'DD/MM/YYYY' (รองรับ พ.ศ.) → year,month,day (ค.ศ.)
-      const d = parseThaiDateOnly(stockOutDate);
+      const d = parseThaiDateOnly(stockOutDate); // 00:00 (Asia/Bangkok)
       if (d) {
         request.input("y", sql.Int, d.getFullYear());
         request.input("m", sql.Int, d.getMonth() + 1);
