@@ -2,7 +2,7 @@
 const path = require("path");
 const { buildFileResponse, validateMime } = require("../../utils/file");
 const { listFiles, safeUnlink, safeJoin } = require("../../utils/fsx");
-const { sql, poolPromise, config } = require("../../config/db"); // ⬅️ เพิ่ม sql, poolPromise
+const { sql, poolPromise, config } = require("../../config/db");
 const {
   responseSuccess,
   responseError,
@@ -306,14 +306,63 @@ async function listUploadedFiles(req, res) {
   }
 }
 
-/** DELETE /files/:name */
-function deleteFile(req, res) {
+/**
+ * DELETE /files/:name
+ * :name รับได้ทั้ง "ไฟล์เนม" หรือ "URL เต็ม"
+ * ขั้นตอน:
+ * 1) ดึง basename (เช่น cb03e...419e.jpg)
+ * 2) หาแถวใน [Image iStock] ที่ picURL LIKE '%<basename>'
+ * 3) ลบแถวนั้นใน DB
+ * 4) ลบไฟล์จริงในเครื่อง (UPLOAD_DIR/<basename>)
+ */
+async function deleteFile(req, res) {
   try {
-    const target = safeJoin(config.UPLOAD_DIR, req.params.name);
-    const ok = safeUnlink(target);
-    if (!ok) return responseError(res, "ไม่พบไฟล์", 404);
-    return responseSuccess(res, "ลบไฟล์แล้ว");
+    const rawName = req.params.name;
+    if (!rawName || typeof rawName !== "string") {
+      return responseError(res, "กรุณาระบุชื่อไฟล์หรือ URL", 400);
+    }
+    const decoded = decodeURIComponent(rawName);
+    const basename = path.basename(decoded);
+
+    if (!basename || basename.includes(path.sep)) {
+      return responseError(res, "ชื่อไฟล์ไม่ถูกต้อง", 400);
+    }
+
+    // 1) ค้นหาแถวใน DB
+    const pool = await poolPromise;
+    const findReq = new sql.Request(pool);
+    findReq.input("needle", sql.NVarChar(200), `%${basename}`);
+    const found = await findReq.query(`
+      SELECT TOP 1
+        [id], [keyRef1], [keyRef2], [keyRef3],
+        [remark], [picURL], [createdBy], [createdAt]
+      FROM [dbo].[Image iStock]
+      WHERE [picURL] LIKE @needle
+      ORDER BY [id] DESC
+    `);
+
+    if (!found.recordset || found.recordset.length === 0) {
+      return responseError(res, "ไม่พบรูปในฐานข้อมูลที่ตรงกับไฟล์ที่ระบุ", 404);
+    }
+
+    const record = found.recordset[0];
+    const delReq = new sql.Request(pool);
+    delReq.input("id", sql.Int, record.id);
+    await delReq.query(`DELETE FROM [dbo].[Image iStock] WHERE [id] = @id;`);
+
+    const target = safeJoin(config.UPLOAD_DIR, basename);
+    const fileDeleted = safeUnlink(target);
+
+    return responseSuccess(res, "ลบรูปสำเร็จ", {
+      db: { deleted: true, id: record.id, picURL: record.picURL },
+      file: {
+        name: basename,
+        deleted: fileDeleted,
+        path: target,
+      },
+    });
   } catch (e) {
+    dlog("delete error:", e.message);
     return responseError(res, "ลบไฟล์ไม่สำเร็จ", 500);
   }
 }
