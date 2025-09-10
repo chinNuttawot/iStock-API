@@ -115,7 +115,6 @@ const CreateTransactionHistory = async (req, res) => {
       binCodeTo,
       branchCode,
       status,
-      createdAt, // ถ้าไม่ส่ง จะ default = now
       createdBy,
       products = [], // จะถูก JSON.stringify เก็บในคอลัมน์ [product]
     } = body;
@@ -124,7 +123,7 @@ const CreateTransactionHistory = async (req, res) => {
     if (!branchCode) return responseError(res, "branchCode is required", 400);
 
     const stockOutDateJS = parseThaiDateToJSDate(stockOutDate);
-    const createdAtJS = createdAt ? new Date(createdAt) : new Date();
+    const createdAtJS = new Date();
 
     let productJson = "[]";
     try {
