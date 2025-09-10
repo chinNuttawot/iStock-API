@@ -363,6 +363,105 @@ const GetDocumentByDocNo = async (req, res) => {
   }
 };
 
+const GetDocumentByDocNoForTransactionHistory = async (req, res) => {
+  const { docNo } = req.params;
+  if (!docNo) return responseError(res, "docNo is required", 400);
+
+  // helper: แปลง Date -> "DD/MM/พ.ศ."
+  const toThaiDate = (input) => {
+    if (!input) return "";
+    const d = new Date(input);
+    if (isNaN(d.getTime())) return "";
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const be = d.getFullYear() + 543;
+    return `${dd}/${mm}/${be}`;
+  };
+
+  try {
+    const pool = await poolPromise;
+
+    // ===== Header =====
+    const hReq = new sql.Request(pool);
+    const hRs = await hReq.input("docNo", sql.VarChar(50), docNo).query(`
+        SELECT
+          d.[docNo],
+          d.[menuId],
+          d.[menuName],
+          d.[stockOutDate],
+          d.[remark],
+          d.[locationCodeFrom],
+          d.[binCodeFrom],
+          d.[createdAt],
+          d.[createdBy],
+          d.[status],
+          d.[locationCodeTo],
+          d.[binCodeTo],
+          d.[branchCode]             -- ✅ เพิ่ม branchCode
+        FROM [Documents iStock] d
+        WHERE d.[docNo] = @docNo
+      `);
+
+    if (!hRs.recordset || hRs.recordset.length === 0) {
+      return responseError(res, `Document ${docNo} not found`, 404);
+    }
+
+    const headerDb = hRs.recordset[0];
+
+    // normalize header เพื่อให้ client ใช้งานร่วมกับ POST payload ได้
+    const header = {
+      docNo: headerDb.docNo,
+      menuId: headerDb.menuId,
+      menuName: headerDb.menuName,
+      branchCode: headerDb.branchCode ?? "", // ✅ ส่งให้ชัด
+      stockOutDate: toThaiDate(headerDb.stockOutDate), // ✅ แปลงเป็น DD/MM/พ.ศ.
+      remark: headerDb.remark ?? "",
+      locationCodeFrom: headerDb.locationCodeFrom ?? "",
+      binCodeFrom: headerDb.binCodeFrom ?? "",
+      locationCodeTo: headerDb.locationCodeTo ?? "",
+      binCodeTo: headerDb.binCodeTo ?? "",
+      createdAt: headerDb.createdAt, // เก็บ ISO ไว้เผื่อหน้า detail ใช้
+      createdBy: headerDb.createdBy ?? "",
+      status: headerDb.status ?? "Open",
+    };
+
+    // ===== Products =====
+    const pReq = new sql.Request(pool);
+    const pRs = await pReq.input("docNo", sql.VarChar(50), docNo).query(`
+        SELECT
+          dp.[id],
+          dp.[uuid],
+          dp.[docNo],
+          dp.[productCode],
+          dp.[model],
+          dp.[quantity],
+          dp.[serialNo],
+          dp.[remark]
+        FROM [DocumentProducts iStock] dp
+        WHERE dp.[docNo] = @docNo
+        ORDER BY dp.[id] ASC
+      `);
+
+    // ✅ คืนรูปแบบ minimal ตรงสคีมธุรกรรม (ไม่มี details/menuType/id เทียม)
+    const products = (pRs.recordset || []).map((item) => ({
+      uuid: item.uuid ?? null, // ถ้ามีในตารางก็ส่งให้
+      productCode: item.productCode ?? "", // << จำเป็น
+      model: item.model ?? "",
+      quantity: Number(item.quantity ?? 0), // บังคับ number
+      serialNo: item.serialNo ?? "",
+      remark: item.remark ?? "",
+    }));
+
+    return responseSuccess(res, "Get document successfully", {
+      ...header,
+      products,
+    });
+  } catch (err) {
+    console.error("GetDocumentByDocNo error:", err);
+    return responseError(res, "Failed to get document");
+  }
+};
+
 /** GET /documents/:docNo/products → คืนเฉพาะ products */
 const GetDocumentProductsByDocNo = async (req, res) => {
   const { docNo } = req.params;
@@ -670,4 +769,5 @@ module.exports = {
   GetDocumentsByDocNos,
   ApproveDocuments,
   SendToApproveDocuments,
+  GetDocumentByDocNoForTransactionHistory,
 };

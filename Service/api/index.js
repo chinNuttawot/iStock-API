@@ -38,6 +38,7 @@ const {
   GetDocumentsByDocNos,
   ApproveDocuments,
   SendToApproveDocuments,
+  GetDocumentByDocNoForTransactionHistory,
 } = require("../Document");
 const { DeleteDocumentProducts } = require("../DeleteDocumentProducts");
 const { getItemVariant } = require("../ItemVariantWS");
@@ -69,6 +70,7 @@ APIs.get("/CreateDocument", checkToken, CreateDocument);
 APIs.get("/documents", checkToken, GetDocuments);
 APIs.get("/documents/:docNo/products", checkToken, GetDocumentProductsByDocNo);
 APIs.get("/documents/:docNo", checkToken, GetDocumentByDocNo);
+APIs.get("/documents-for-transaction-history/:docNo", checkToken, GetDocumentByDocNoForTransactionHistory);
 APIs.get("/documents-send-NAV", checkToken, GetDocumentsByDocNos);
 APIs.get("/ItemVariantWS", checkToken, getItemVariant);
 APIs.get("/ItemProductWS", checkToken, getItemProduct);
