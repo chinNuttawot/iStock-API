@@ -145,7 +145,7 @@ const GetTransactionHistory = async (req, res) => {
 
     // WHERE builder
     const whereParts = ["[createdBy] = @createdBy"];
-    if (docNo) whereParts.push("[docNo] LIKE @docNo");
+    if (docNo) whereParts.push("UPPER([docNo]) LIKE UPPER(@docNo)");
     if (branchCode) whereParts.push("[branchCode] = @branchCode");
     if (status) whereParts.push("[status] = @status");
     if (dateFrom) whereParts.push("[createdAt] >= @dateFrom");

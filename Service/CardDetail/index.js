@@ -45,14 +45,16 @@ const getCardDetail = async (req, res) => {
     const navData = await getCardDetailListNAV({ menuId, docNo });
     const formatted = navData.map((item, idx) => ({
       id: String(idx + 1),
-      docNo: item.docNo,
+      docNo: item.itemNo,
+      itemNo: item.itemNo,
+      lineNo: item.lineNo,
       menuType: getMenuType(menuId),
-      model: item.itemNo,
+      model: item.variantCode,
       qtyReceived: item.qtyReceived,
       qtyShipped: item.qtyShipped,
       isDelete: false,
       details: [
-        { label: "รหัสแบบ", value: item.itemNo ?? "-" },
+        { label: "รหัสแบบ", value: item.variantCode ?? "-" },
         { label: "หมายเหตุ", value: item.description ?? "" },
         {
           label: "จำนวนที่รับ",
