@@ -21,6 +21,7 @@ const NAV_URL_ITEM_VARIANT_WS = process.env.NAV_URL_ITEM_VARIANT_WS;
 const NAV_URL_ITEM_WS = process.env.NAV_URL_ITEM_WS;
 const NAV_URL_TRANSFER_ORDER_DETAIL_WS =
   process.env.NAV_URL_TRANSFER_ORDER_DETAIL_WS;
+const NAV_URL_ISTOCK_STAGIONG_WS = process.env.NAV_URL_ISTOCK_STAGIONG_WS;
 const NAV_USER = process.env.NAV_USER || "Pmc";
 const NAV_PASS = process.env.NAV_PASS || "Pmc@1234";
 
@@ -60,22 +61,22 @@ async function getByUserNAV(username) {
 }
 
 const getCardDetailListNAV = async (item) => {
-  const { menuId, docNo } = item;
+  const { menuId, docNo, isEditFiler = false, filter } = item;
   if (!NAV_URL_TRANSFER_ORDER_DETAIL_WS) {
     throw new Error("ENV NAV_URL_TRANSFER_ORDER_DETAIL_WS ไม่ถูกตั้งค่า");
   }
   let res;
+  const myFilter = isEditFiler
+    ? `${filter}`
+    : `$count=true&$filter=docNo eq '${docNo}'`;
   try {
     //สแกนรับ
     if (menuId === 0) {
-      res = await axios.get(
-        `${NAV_URL_TRANSFER_ORDER_DETAIL_WS}?$count=true&$filter=docNo eq '${docNo}'`,
-        {
-          headers: headersNAV,
-          timeout: 10000,
-          httpsAgent,
-        }
-      );
+      res = await axios.get(`${NAV_URL_TRANSFER_ORDER_DETAIL_WS}?${myFilter}`, {
+        headers: headersNAV,
+        timeout: 10000,
+        httpsAgent,
+      });
     }
 
     const data = (Array.isArray(res?.data?.value) ? res.data.value : []).concat(
@@ -156,6 +157,25 @@ const getCardListNAV = async (item) => {
     throw new Error("Error get CardList NAV");
   }
 };
+
+const sendIStockStaging = async (data) => {
+  if (!NAV_URL_ISTOCK_STAGIONG_WS) {
+    return false;
+  }
+  let res;
+  try {
+    res = await axios.post(`${NAV_URL_ISTOCK_STAGIONG_WS}`, data, {
+      headers: headersNAV,
+      timeout: 10000000,
+      httpsAgent,
+    });
+
+    return true;
+  } catch (err) {
+    return false;
+  }
+};
+
 // ดึง NAV พร้อมรีทราย
 async function getUserNAV() {
   if (!NAV_URL) {
@@ -287,4 +307,5 @@ module.exports = {
   getCardDetailListNAV,
   getItemWS,
   getItemVariantWS,
+  sendIStockStaging,
 };

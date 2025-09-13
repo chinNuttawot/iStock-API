@@ -47,6 +47,7 @@ const config = {
   NAV_URL_TRANSFER_ORDER_WS: process.env.NAV_URL_TRANSFER_ORDER_WS,
   NAV_URL_TRANSFER_ORDER_DETAIL_WS:
     process.env.NAV_URL_TRANSFER_ORDER_DETAIL_WS,
+  NAV_URL_ISTOCK_STAGIONG_WS: process.env.NAV_URL_ISTOCK_STAGIONG_WS,
 };
 
 // ====== SQL Server Connection Pool ======
