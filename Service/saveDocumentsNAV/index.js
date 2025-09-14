@@ -38,7 +38,7 @@ const saveDocumentsNAV = async (req, res) => {
         menuID: 0,
         menuName: "Scan-Receive",
         stockOutDate: getTodayISO(),
-        remark: "",
+        remark: "Save By iStock Mobile",
         locationCodeFrom: "",
         binCodeFrom: "",
         createdAt: formatToISO(new Date()),
