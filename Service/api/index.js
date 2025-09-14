@@ -50,6 +50,7 @@ const {
 } = require("../TransactionHistory");
 const { ApproveDocumentsNAV } = require("../ApproveDocumentsNAV");
 const { saveDocumentsNAV } = require("../saveDocumentsNAV");
+const { ForgotPassword } = require("../ForgotPassword");
 
 const APIs = express.Router();
 
@@ -63,8 +64,8 @@ APIs.get("/", checkToken, TestAPI);
 APIs.post("/Logout", checkToken, Logout);
 APIs.post("/DeleteAccount", checkToken, deleteAccount);
 
-APIs.get("/BinCodesByLocation", checkToken, getBinCodesByLocation);
-APIs.get("/Locations", checkToken, getLocations);
+APIs.get("/BinCodesByLocation", getBinCodesByLocation);
+APIs.get("/Locations", getLocations);
 APIs.get("/OrderStatusList", checkToken, getOrderStatusList);
 APIs.get("/Profile", checkToken, GetProfile);
 APIs.get("/Menus", checkToken, getMenus);
@@ -96,6 +97,7 @@ APIs.post("/SendToApproveDocuments", checkToken, SendToApproveDocuments);
 APIs.post("/transaction-history", checkToken, CreateTransactionHistory);
 APIs.post("/ApproveDocuments-NAV", checkToken, ApproveDocumentsNAV);
 APIs.post("/saveDocuments-NAV", checkToken, saveDocumentsNAV);
+APIs.post("/forgot-password", checkToken, ForgotPassword);
 
 APIs.get("/files-list", checkToken, listUploadedFiles);
 APIs.delete("/files/:name", checkToken, deleteFile);
