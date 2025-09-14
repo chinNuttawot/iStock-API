@@ -70,6 +70,7 @@ const saveDocumentsNAV = async (req, res) => {
 
       return {
         ...v,
+        uuid: uuidv4(),
         docNo: v.itemNo,
         productCode: v.itemNo,
         model: v.variantCode,
