@@ -44,7 +44,7 @@ const odataQuote = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
 const getCardList = async (req, res) => {
   try {
-    let { menuId, branchCode, status } = req.query;
+    let { menuId, branchCode, status, stockOutDate, docNo } = req.query;
     const isApprover = req.query.isApprover === "true" ?? false;
     menuId = Number(menuId);
     if (isNaN(menuId)) {
@@ -74,7 +74,7 @@ const getCardList = async (req, res) => {
             .map((b) => b.trim())
             .filter(Boolean);
         }
-      } 
+      }
 
       const branches = branchCode
         .split("|")
@@ -92,6 +92,16 @@ const getCardList = async (req, res) => {
           : "";
 
       _branchCode = [branchExpr, statusExpr].filter(Boolean).join(" and ");
+    }
+
+    if (stockOutDate) {
+      const _stockOutDate = `shipmentDate eq ${stockOutDate}`;
+      _branchCode = [_stockOutDate].filter(Boolean).join(" and ");
+    }
+
+    if (docNo) {
+      const _docNo = `contains(docNo,'${docNo}')`;
+      _branchCode = [_docNo].filter(Boolean).join(" and ");
     }
 
     const navData = await getCardListNAV({ menuId, branchCode: _branchCode });
