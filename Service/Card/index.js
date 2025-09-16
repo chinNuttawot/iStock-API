@@ -42,6 +42,15 @@ function getMenuType(menuId) {
 
 const odataQuote = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
+const normalizeDate = (d) => {
+  if (!d) return null;
+  // ถ้าเป็นรูปแบบ ISO อยู่แล้ว ก็ส่งกลับเลย
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  // ลอง parse แบบ DD/MM/YYYY
+  const m = moment(d, "DD/MM/YYYY", true);
+  return m.isValid() ? m.format("YYYY-MM-DD") : null;
+};
+
 const getCardList = async (req, res) => {
   try {
     let { menuId, branchCode, status, stockOutDate, docNo } = req.query;
@@ -58,16 +67,13 @@ const getCardList = async (req, res) => {
       return responseError(res, "Failed to branchCode", 401);
     }
 
-    let _branchCode = `branchCode eq '${branchCode}'`;
+    let _branchCode = ``;
 
     if (isApprover) {
       let _Status = [];
       if (status) {
         if (status === "All") {
-          _Status = "Pending Approval|Approved|Rejected"
-            .split("|")
-            .map((b) => b.trim())
-            .filter(Boolean);
+          _Status = ["Pending Approval", "Approved", "Rejected"];
         } else {
           _Status = status
             .split("|")
@@ -76,7 +82,7 @@ const getCardList = async (req, res) => {
         }
       }
 
-      const branches = branchCode
+      const branches = (branchCode || "")
         .split("|")
         .map((b) => b.trim())
         .filter(Boolean);
@@ -86,28 +92,37 @@ const getCardList = async (req, res) => {
             .join(" or ")})`
         : "";
 
-      const statusExpr =
-        _Status.length > 0
-          ? `(${_Status.map((s) => `status eq ${odataQuote(s)}`).join(" or ")})`
-          : "";
+      const statusExpr = _Status.length
+        ? `(${_Status.map((s) => `status eq ${odataQuote(s)}`).join(" or ")})`
+        : "";
 
       _branchCode = [branchExpr, statusExpr].filter(Boolean).join(" and ");
     } else {
-      if (status) {
-        const statusExpr = `status eq ${status}`;
-        _branchCode = [statusExpr].filter(Boolean).join(" and ");
+      if (branchCode) {
+        _branchCode = [`branchCode eq ${odataQuote(branchCode)}`].join(" and ");
+      }
+      if (status && status !== "All") {
+        _branchCode = [_branchCode, `status eq ${odataQuote(status)}`]
+          .filter(Boolean)
+          .join(" and ");
       }
     }
 
     if (stockOutDate) {
-      const _stockOutDate = `shipmentDate eq ${stockOutDate}`;
-      _branchCode = [_stockOutDate].filter(Boolean).join(" and ");
+      const ship = normalizeDate(stockOutDate);
+      if (ship) {
+        _branchCode = [_branchCode, `shipmentDate eq ${ship}`]
+          .filter(Boolean)
+          .join(" and ");
+      }
     }
 
     if (docNo) {
-      const _docNo = `contains(docNo,'${docNo}')`;
-      _branchCode = [_docNo].filter(Boolean).join(" and ");
+      _branchCode = [_branchCode, `contains(docNo, ${odataQuote(docNo)})`]
+        .filter(Boolean)
+        .join(" and ");
     }
+    console.log("filter ==>", _branchCode);
 
     const navData = await getCardListNAV({ menuId, branchCode: _branchCode });
     const formatted = navData.map((item, idx) => ({
