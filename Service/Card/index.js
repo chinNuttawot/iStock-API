@@ -92,6 +92,19 @@ const getCardList = async (req, res) => {
           : "";
 
       _branchCode = [branchExpr, statusExpr].filter(Boolean).join(" and ");
+    } else {
+      let _Status = [];
+      _Status = status
+        .split("|")
+        .map((b) => b.trim())
+        .filter(Boolean);
+
+      const statusExpr =
+        _Status.length > 0
+          ? `(${_Status.map((s) => `status eq ${odataQuote(s)}`).join(" or ")})`
+          : "";
+
+      _branchCode = [statusExpr].filter(Boolean).join(" and ");
     }
 
     if (stockOutDate) {
