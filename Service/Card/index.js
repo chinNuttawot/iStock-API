@@ -93,8 +93,10 @@ const getCardList = async (req, res) => {
 
       _branchCode = [branchExpr, statusExpr].filter(Boolean).join(" and ");
     } else {
-      const statusExpr = `status eq ${status}`;
-      _branchCode = [statusExpr].filter(Boolean).join(" and ");
+      if (status) {
+        const statusExpr = `status eq ${status}`;
+        _branchCode = [statusExpr].filter(Boolean).join(" and ");
+      }
     }
 
     if (stockOutDate) {
