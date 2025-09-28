@@ -65,20 +65,22 @@ const saveDocumentsNAV = async (req, res) => {
       isEditFiler: true,
       filter: filter,
     });
-    let _products = navDataDetail.map((v) => {
-      const found = products.find((x) => x.lineNo === v.lineNo);
+    let _products = navDataDetail
+      .filter((item) => item.itemNo)
+      .map((v) => {
+        const found = products.find((x) => x.lineNo === v.lineNo);
 
-      return {
-        ...v,
-        uuid: uuidv4(),
-        docNo: v.itemNo,
-        productCode: v.itemNo,
-        model: v.variantCode,
-        serialNo: found.serialNo ?? "",
-        remark: v.description ?? "",
-        quantity: found ? Number(found.quantity) : 0,
-      };
-    });
+        return {
+          ...v,
+          uuid: uuidv4(),
+          docNo: v.itemNo,
+          productCode: v.itemNo,
+          model: v.variantCode,
+          serialNo: found.serialNo ?? "",
+          remark: v.description ?? "",
+          quantity: found ? Number(found.quantity) : 0,
+        };
+      });
 
     const navData = await getCardListNAV({
       menuId: 0,

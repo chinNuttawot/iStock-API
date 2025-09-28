@@ -43,26 +43,28 @@ const getCardDetail = async (req, res) => {
       return responseSuccess(res, "Card list fetched (ยังไม่พร้อมใช้งาน)", {});
     }
     const navData = await getCardDetailListNAV({ menuId, docNo });
-    const formatted = navData.map((item, idx) => ({
-      id: String(idx + 1),
-      docNo: item.itemNo,
-      itemNo: item.itemNo,
-      lineNo: item.lineNo,
-      menuType: getMenuType(menuId),
-      model: item.variantCode,
-      qtyReceived: item.qtyReceived,
-      qtyShipped: item.qtyShipped,
-      isDelete: false,
-      details: [
-        { label: "รหัสแบบ", value: item.variantCode ?? "-" },
-        { label: "หมายเหตุ", value: item.description ?? "" },
-        {
-          label: "จำนวนที่รับ",
-          value: `${item.qtyReceived} / ${item.qtyShipped}`,
-        },
-      ],
-      picURL: item.picURL,
-    }));
+    const formatted = navData
+      .filter((item) => item.itemNo)
+      .map((item, idx) => ({
+        id: String(idx + 1),
+        docNo: item.itemNo,
+        itemNo: item.itemNo,
+        lineNo: item.lineNo,
+        menuType: getMenuType(menuId),
+        model: item.variantCode,
+        qtyReceived: item.qtyReceived,
+        qtyShipped: item.qtyShipped,
+        isDelete: false,
+        details: [
+          { label: "รหัสแบบ", value: item.variantCode ?? "-" },
+          { label: "หมายเหตุ", value: item.description ?? "" },
+          {
+            label: "จำนวนที่รับ",
+            value: `${item.qtyReceived} / ${item.qtyShipped}`,
+          },
+        ],
+        picURL: item.picURL,
+      }));
 
     return responseSuccess(
       res,
