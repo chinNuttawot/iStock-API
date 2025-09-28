@@ -5,17 +5,18 @@ const {
 const { cardData } = require("./mockup");
 const { getCardListNAV } = require("../NAV");
 
-function formatDate(dateStr) {
+function formatDate(dateStr, era = "AD") {
   const d = new Date(dateStr);
-  return d.toLocaleDateString("th-TH", {
+  return d.toLocaleDateString(era === "AD" ? "th-TH-u-ca-gregory" : "th-TH", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
 }
-function formatDateTime(dateStr) {
+
+function formatDateTime(dateStr, era = "AD") {
   const d = new Date(dateStr);
-  return d.toLocaleString("th-TH", {
+  return d.toLocaleString(era === "AD" ? "th-TH-u-ca-gregory" : "th-TH", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -122,8 +123,6 @@ const getCardList = async (req, res) => {
         .filter(Boolean)
         .join(" and ");
     }
-    console.log("filter ==>", _branchCode);
-
     const navData = await getCardListNAV({ menuId, branchCode: _branchCode });
     const formatted = navData.map((item, idx) => ({
       id: String(idx + 1),
