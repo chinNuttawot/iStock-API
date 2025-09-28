@@ -46,7 +46,7 @@ const Login = async (req, res) => {
         }
         
         if (!navUser?.branchCode) {
-          return responseError(res, "ติดต่อ NAV", 400);
+          return responseError(res, "ไม่มี branchCode ติดต่อ NAV", 400);
         }
 
         // // ผ่าน ⇒ ออก token เลย (ไม่บันทึก DB เพราะไม่มี record)
