@@ -44,6 +44,8 @@ const CreateDocumentFlowSave = async (req, res) => {
 
   // เตรียมค่าที่จะบันทึก
   const stockOutDateJS = parseThaiDateToJSDate(stockOutDate); // DD/MM/พ.ศ.
+  console.log("stockOutDateJS ====>", stockOutDateJS);
+  
   const createdAtJS = createdAt ? new Date(createdAt) : new Date();
 
   try {

@@ -4,7 +4,12 @@ const {
   responseError,
 } = require("../../utils/responseHelper");
 const { sql, poolPromise } = require("../../config/db");
-const { getMenuType, formatDate, formatDateTime } = require("../Card");
+const {
+  getMenuType,
+  formatDate,
+  formatDateTime,
+  fixShipmentDate,
+} = require("../Card");
 
 /** แปลง DD/MM/พ.ศ. -> JS Date (LOCAL 00:00) */
 function parseThaiDateToJSDate(ddmmyyyy_thai) {
@@ -247,7 +252,6 @@ const GetDocuments = async (req, res) => {
       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
     `;
     const rs = await listReq.query(dataSql);
-
     const recordset = (rs.recordset || []).map((item, idx) => ({
       id: String(idx + 1),
       docNo: item.docNo,
@@ -264,7 +268,7 @@ const GetDocuments = async (req, res) => {
               : item.menuId === 2
               ? "วันที่โอนย้าย"
               : "วันที่ตรวจสินค้า",
-          value: formatDate(item.stockOutDate),
+          value: formatDate(fixShipmentDate(item.stockOutDate)),
         },
         ...(item.menuId !== 2
           ? [

@@ -5,18 +5,27 @@ const {
 const { cardData } = require("./mockup");
 const { getCardListNAV } = require("../NAV");
 
-function formatDate(dateStr, era = "AD") {
+function fixShipmentDate(dateStr) {
   const d = new Date(dateStr);
-  return d.toLocaleDateString(era === "AD" ? "th-TH-u-ca-gregory" : "th-TH", {
+
+  let year = d.getFullYear();
+  year += 543;
+
+  return new Date(year, d.getMonth(), d.getDate());
+}
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
 }
 
-function formatDateTime(dateStr, era = "AD") {
+function formatDateTime(dateStr) {
   const d = new Date(dateStr);
-  return d.toLocaleString(era === "AD" ? "th-TH-u-ca-gregory" : "th-TH", {
+  return d.toLocaleString("th-TH-u-ca-gregory", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -155,4 +164,5 @@ module.exports = {
   getMenuType,
   formatDate,
   formatDateTime,
+  fixShipmentDate,
 };

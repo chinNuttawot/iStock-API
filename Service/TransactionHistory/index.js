@@ -123,7 +123,7 @@ const CreateTransactionHistory = async (req, res) => {
     if (!docNo) return responseError(res, "docNo is required", 400);
     if (!branchCode) return responseError(res, "branchCode is required", 400);
 
-    const stockOutDateJS = parseThaiDateToJSDate(stockOutDate);
+    const stockOutDateJS = stockOutDate;
     const createdAtJS = new Date();
 
     let productJson = "[]";
