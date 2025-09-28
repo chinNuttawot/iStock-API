@@ -31,7 +31,7 @@ const ForgotPassword = async (req, res) => {
     updateReq.input("pwd", sql.NVarChar, newPassword);
     const updateSql = `
       UPDATE [User iStock]
-      SETฃ
+      SET
 
         [Password] = @pwd,
         [Sync] = 1,
