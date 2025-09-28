@@ -4,7 +4,7 @@ const {
   responseError,
 } = require("../../utils/responseHelper");
 
-// POST /api/auth/forgot-password
+// POST /api/forgot-password
 // body: { "username": "someone", "newPassword": "xxxxxx" (base64) }
 const ForgotPassword = async (req, res) => {
   try {

@@ -97,7 +97,7 @@ APIs.post("/SendToApproveDocuments", checkToken, SendToApproveDocuments);
 APIs.post("/transaction-history", checkToken, CreateTransactionHistory);
 APIs.post("/ApproveDocuments-NAV", checkToken, ApproveDocumentsNAV);
 APIs.post("/saveDocuments-NAV", checkToken, saveDocumentsNAV);
-APIs.post("/forgot-password", checkToken, ForgotPassword);
+APIs.post("/forgot-password", ForgotPassword);
 
 APIs.get("/files-list", checkToken, listUploadedFiles);
 APIs.delete("/files/:name", checkToken, deleteFile);
