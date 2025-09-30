@@ -79,9 +79,6 @@ const DeleteDocumentProducts = async (req, res) => {
         notFound,
       });
     } catch (err) {
-      // ถ้า OPENJSON ใช้ไม่ได้ ให้ fallback เป็นลูปทีละตัวใน Transaction เดิม
-      // (เช่น compatibility level ต่ำกว่า 130)
-      // console.warn("OPENJSON not available, fallback loop:", err);
       try {
         let deleted = 0;
         const deletedItems = [];

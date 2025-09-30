@@ -6,6 +6,8 @@ const {
 } = require("../../utils/responseHelper");
 const { formatDate, formatDateTime, getMenuType } = require("../Card");
 
+/** ================= Helpers ================= */
+
 /** ป้ายวันที่ตามเมนู */
 const dateLabelByMenuId = (menuId) => {
   if (menuId === 0) return "วันที่ส่งสินค้า";
@@ -15,6 +17,49 @@ const dateLabelByMenuId = (menuId) => {
   return "วันที่เอกสาร";
 };
 
+/** จำกัดความยาวสตริง */
+const clamp = (s, n) => (s == null ? s : String(s).slice(0, n));
+
+/** parse 'DD/MM/YYYY' (พ.ศ./ค.ศ.) -> JS Date ที่เวลา 00:00:00 (ตามเขตเวลาเครื่องรัน) */
+function parseThaiDateOnly(input) {
+  if (!input || typeof input !== "string" || !input.includes("/")) return null;
+  const m = input.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  let [, dd, MM, yyyyRaw] = m;
+  let day = parseInt(dd, 10);
+  let mon = parseInt(MM, 10);
+  let year = parseInt(yyyyRaw, 10);
+  if (!day || !mon || !year) return null;
+  if (year > 2400) year -= 543; // BE -> AD
+  // ใช้ local time ที่ 00:00:00 เพื่อไม่ให้ timezone พาเพี้ยน
+  return new Date(year, mon - 1, day, 0, 0, 0, 0);
+}
+
+/** parse 'DD/MM/YYYY' (พ.ศ./ค.ศ.) | ISO | Date -> JS Date (ค.ศ.) */
+function normalizeInputDate(input) {
+  if (!input) return null;
+
+  // Date instance
+  if (input instanceof Date && !isNaN(input.getTime())) return input;
+
+  if (typeof input === "string") {
+    // DD/MM/YYYY (ไทย)
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(input)) {
+      return parseThaiDateOnly(input);
+    }
+    // ISO 'YYYY-MM-DD' หรือ 'YYYY-MM-DDTHH:mm:ssZ'
+    if (/^\d{4}-\d{2}-\d{2}/.test(input)) {
+      const d = new Date(input);
+      return isNaN(d.getTime()) ? null : d;
+    }
+  }
+
+  // อื่น ๆ: ลอง new Date
+  const d = new Date(input);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** แปลง rows -> โครงสร้างการ์ดที่ mobile ใช้ */
 function transformDocuments(rows = []) {
   return rows.map((item, idx) => {
     const product = Array.isArray(item.product) ? item.product : [];
@@ -75,30 +120,7 @@ function transformDocuments(rows = []) {
   });
 }
 
-/** helper: clamp string length */
-const clamp = (s, n) => (s == null ? s : String(s).slice(0, n));
-
-/** helper: parse 'DD/MM/YYYY' (พ.ศ./ค.ศ.) -> JS Date at 00:00:00 (local) */
-function parseThaiDateOnly(input) {
-  if (!input || typeof input !== "string" || !input.includes("/")) return null;
-  const [dd, mm, yyyyRaw] = input.split("/").map((v) => parseInt(v, 10));
-  if (!dd || !mm || !yyyyRaw) return null;
-  const year = yyyyRaw > 2400 ? yyyyRaw - 543 : yyyyRaw; // พ.ศ. -> ค.ศ.
-  return new Date(year, mm - 1, dd, 0, 0, 0, 0);
-}
-
-/** helper: parse 'DD/MM/YYYY' (พ.ศ.) หรือ ISO -> JS Date (ใช้กับ stockOutDate ตอน insert) */
-function parseThaiDateToJSDate(input) {
-  if (!input) return null;
-  if (typeof input === "string" && input.includes("/")) {
-    const [dd, mm, yyyyThai] = input.split("/").map((v) => parseInt(v, 10));
-    if (!dd || !mm || !yyyyThai) return null;
-    const yyyy = yyyyThai > 2400 ? yyyyThai - 543 : yyyyThai;
-    return new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
-  }
-  const d = new Date(input);
-  return isNaN(d.getTime()) ? null : d;
-}
+/** ================= Controllers ================= */
 
 /** POST /api/transaction-history : create 1 record */
 const CreateTransactionHistory = async (req, res) => {
@@ -108,7 +130,7 @@ const CreateTransactionHistory = async (req, res) => {
       docNo,
       menuId,
       menuName,
-      stockOutDate, // รับได้ทั้ง DD/MM/พ.ศ. หรือ ISO string/Date
+      stockOutDate, // รับได้ทั้ง DD/MM/YYYY (พ.ศ./ค.ศ.) หรือ ISO string/Date
       remark,
       locationCodeFrom,
       binCodeFrom,
@@ -123,7 +145,16 @@ const CreateTransactionHistory = async (req, res) => {
     if (!docNo) return responseError(res, "docNo is required", 400);
     if (!branchCode) return responseError(res, "branchCode is required", 400);
 
-    const stockOutDateJS = stockOutDate;
+    // ✅ แปลงให้เป็น Date (ค.ศ.) เสมอ
+    const stockOutDateJS = normalizeInputDate(stockOutDate);
+    if (stockOutDate && !stockOutDateJS) {
+      return responseError(
+        res,
+        "stockOutDate format invalid (รองรับ DD/MM/YYYY หรือ ISO)",
+        400
+      );
+    }
+
     const createdAtJS = new Date();
 
     let productJson = "[]";
@@ -139,7 +170,12 @@ const CreateTransactionHistory = async (req, res) => {
       .input("docNo", sql.NVarChar(50), clamp(docNo, 50))
       .input("menuId", sql.Int, menuId ?? null)
       .input("menuName", sql.NVarChar(200), clamp(menuName, 200))
-      .input("stockOutDate", sql.DateTime2, stockOutDateJS ?? null)
+      // ถ้าเก็บ “แค่วัน” แนะนำใช้ sql.Date; ถ้าอยากเก็บเวลาให้ใช้ DateTime2
+      .input(
+        "stockOutDate",
+        stockOutDateJS ? sql.DateTime2 : sql.DateTime2,
+        stockOutDateJS ?? null
+      )
       .input("remark", sql.NVarChar(500), clamp(remark, 500))
       .input("locationCodeFrom", sql.NVarChar(50), clamp(locationCodeFrom, 50))
       .input("binCodeFrom", sql.NVarChar(50), clamp(binCodeFrom, 50))
@@ -194,7 +230,7 @@ const GetTransactionHistory = async (req, res) => {
       status,
       dateFrom,
       dateTo,
-      stockOutDate, // DD/MM/YYYY (TH/EN calendar)
+      stockOutDate, // DD/MM/YYYY (ไทย/ค.ศ.)
       sortBy = "createdAt",
       sortDir = "DESC",
     } = req.query || {};
@@ -220,10 +256,7 @@ const GetTransactionHistory = async (req, res) => {
     if (dateFrom) whereParts.push("[createdAt] >= @dateFrom");
     if (dateTo) whereParts.push("[createdAt] <  @dateTo");
 
-    // ✅ เทียบ "วันเดียว" ตามเวลาไทย (+07:00)
-    // อธิบาย:
-    //   - ฝั่งคอลัมน์: แปลงจาก UTC → +07:00 แล้ว CAST เป็น DATE
-    //   - ฝั่งพารามิเตอร์: ใช้ DATEFROMPARTS(@y,@m,@d) จากเลขปี/เดือน/วัน (กัน timezone shift ของ driver)
+    // ✅ เทียบ "วันเดียว" ของ stockOutDate ตามเวลาไทย (+07:00)
     if (stockOutDate) {
       whereParts.push(
         "CAST(SWITCHOFFSET([stockOutDate] AT TIME ZONE 'UTC', '+07:00') AS DATE) = DATEFROMPARTS(@y, @m, @d)"
@@ -252,7 +285,7 @@ const GetTransactionHistory = async (req, res) => {
     }
 
     if (stockOutDate) {
-      const d = parseThaiDateOnly(stockOutDate); // 00:00 (Asia/Bangkok)
+      const d = parseThaiDateOnly(stockOutDate); // 00:00 (local)
       if (d) {
         request.input("y", sql.Int, d.getFullYear());
         request.input("m", sql.Int, d.getMonth() + 1);

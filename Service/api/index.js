@@ -51,6 +51,7 @@ const {
 const { ApproveDocumentsNAV } = require("../ApproveDocumentsNAV");
 const { saveDocumentsNAV } = require("../saveDocumentsNAV");
 const { ForgotPassword } = require("../ForgotPassword");
+const { EditDocumentProducts } = require("../EditDocumentProducts");
 
 const APIs = express.Router();
 
@@ -97,6 +98,7 @@ APIs.post("/SendToApproveDocuments", checkToken, SendToApproveDocuments);
 APIs.post("/transaction-history", checkToken, CreateTransactionHistory);
 APIs.post("/ApproveDocuments-NAV", checkToken, ApproveDocumentsNAV);
 APIs.post("/saveDocuments-NAV", checkToken, saveDocumentsNAV);
+APIs.post("/document-products-edit", checkToken, EditDocumentProducts);
 APIs.post("/forgot-password", ForgotPassword);
 
 APIs.get("/files-list", checkToken, listUploadedFiles);
