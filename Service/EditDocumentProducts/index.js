@@ -14,9 +14,9 @@ const {
  *       "uuid": "....",
  *       "productCode": "....",
  *       "patch": {
- *          "quantity": 10,        // (number/int)
- *          "serialNo": "SN001",   // (string)
- *          "remark": "หมายเหตุ"   // (string)
+ *          "quantity": 10,        // number (ไม่ส่งมา = ไม่อัพเดต)
+ *          "serialNo": "SN001",   // string | null (ไม่ส่งมา = ไม่อัพเดต)
+ *          "remark": "หมายเหตุ"   // string | null (ไม่ส่งมา = ไม่อัพเดต)
  *       }
  *     }
  *   ]
@@ -29,7 +29,7 @@ const EditDocumentProducts = async (req, res) => {
       return responseError(res, "items (array) is required", 400);
     }
 
-    // ====== อนุญาตแก้เฉพาะ 3 ฟิลด์นี้ ======
+    // อนุญาตแก้เฉพาะ 3 ฟิลด์นี้
     const allowedFields = new Set(["quantity", "serialNo", "remark"]);
 
     // ตรวจรูปแบบข้อมูลพื้นฐาน
@@ -51,34 +51,47 @@ const EditDocumentProducts = async (req, res) => {
       );
     }
 
-    // กรอง patch และทำความสะอาดค่า (trim string / ตรวจ type)
-    const sanitizedItems = [];
-    for (const it of items) {
+    // กรอง patch: "ไม่ส่งมา/undefined => ไม่อัพเดต", "null => อัพเดตเป็น NULL"
+    const sanitizedItems = items.map((it) => {
       const clean = {};
-      for (const [k, v] of Object.entries(it.patch)) {
+      for (const k of Object.keys(it.patch)) {
         if (!allowedFields.has(k)) continue;
 
+        const v = it.patch[k];
+
+        // ❗ ไม่อัพเดตถ้า undefined (เท่ากับ "ไม่ได้ส่งมา")
+        if (typeof v === "undefined") continue;
+
         if (k === "quantity") {
-          // อนุญาต number เท่านั้น (int หรือ decimal ก็ได้ แต่จะ bind เป็น INT ถ้าเป็นจำนวนเต็ม)
-          if (typeof v !== "number" || !isFinite(v)) {
-            return responseError(res, `quantity must be a number`, 400);
+          if (v === null) {
+            clean.quantity = null;
+          } else if (typeof v === "number" && isFinite(v)) {
+            // ถ้าต้องการบังคับจำนวนเต็ม: ใช้ Number.isInteger(v)
+            clean.quantity = v;
+          } else {
+            return { __error: `quantity must be a number or null`, it };
           }
-          clean.quantity = v;
         } else if (k === "serialNo" || k === "remark") {
-          if (v === null || v === undefined) {
+          if (v === null) {
             clean[k] = null;
           } else if (typeof v === "string") {
             clean[k] = v.trim();
           } else {
-            return responseError(res, `${k} must be a string or null`, 400);
+            return { __error: `${k} must be a string or null`, it };
           }
         }
       }
-      sanitizedItems.push({
+      return {
         uuid: it.uuid,
         productCode: it.productCode,
         patch: clean,
-      });
+      };
+    });
+
+    // ตรวจ error จากขั้น sanitize
+    const sanitizeErr = sanitizedItems.find((s) => s?.__error);
+    if (sanitizeErr) {
+      return responseError(res, sanitizeErr.__error, 400);
     }
 
     const pool = await poolPromise;
@@ -89,14 +102,15 @@ const EditDocumentProducts = async (req, res) => {
       let updated = 0;
       const updatedItems = [];
       const notFound = [];
-      const skipped = [];
+      const skipped = []; // ไม่มีฟิลด์ที่จะอัพเดต (เพราะไม่ได้ส่งมา/ไม่อยู่ใน allowed)
 
       const bindValue = (request, name, value) => {
-        if (value === null || value === undefined) {
+        if (value === null) {
           request.input(name, sql.Variant, null);
           return;
         }
         if (typeof value === "number") {
+          // ถ้าต้องการบังคับ INT เสมอ: เปลี่ยนเป็น sql.Int
           if (Number.isInteger(value)) {
             request.input(name, sql.Int, value);
           } else {
@@ -105,6 +119,7 @@ const EditDocumentProducts = async (req, res) => {
         } else if (typeof value === "string") {
           request.input(name, sql.NVarChar(sql.MAX), value);
         } else {
+          // fallback
           request.input(name, sql.NVarChar(sql.MAX), String(value));
         }
       };
@@ -115,7 +130,7 @@ const EditDocumentProducts = async (req, res) => {
           skipped.push({
             uuid,
             productCode,
-            reason: "No allowed fields in patch",
+            reason: "No fields provided to update",
           });
           continue;
         }

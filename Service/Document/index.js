@@ -502,6 +502,10 @@ const GetDocumentProductsByDocNo = async (req, res) => {
     const recordset = (pRs.recordset || []).map((item, idx) => ({
       id: String(idx + 1),
       docNo: item.productCode,
+      productCode: item.productCode,
+      serialNo: item.serialNo,
+      remark: item.remark,
+      quantity: item.quantity,
       menuType: getMenuType(item.menuId),
       menuId: item.menuId,
       model: item.model,
