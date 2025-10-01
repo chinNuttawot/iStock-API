@@ -52,6 +52,7 @@ const { ApproveDocumentsNAV } = require("../ApproveDocumentsNAV");
 const { saveDocumentsNAV } = require("../saveDocumentsNAV");
 const { ForgotPassword } = require("../ForgotPassword");
 const { EditDocumentProducts } = require("../EditDocumentProducts");
+const { addDocumentProducts } = require("../AddDocumentProducts");
 
 const APIs = express.Router();
 
@@ -92,13 +93,14 @@ APIs.post("/upload/image", checkToken, uploadImageSingle, uploadImage);
 APIs.post("/upload/file", checkToken, uploadFileSingle, uploadFile);
 APIs.post("/upload/multi", checkToken, uploadMulti, uploadMultiple);
 APIs.post("/CreateDocument", checkToken, CreateDocumentFlowSave);
-APIs.post("/document-products-delete", checkToken, DeleteDocumentProducts);
 APIs.post("/ApproveDocuments", checkToken, ApproveDocuments);
 APIs.post("/SendToApproveDocuments", checkToken, SendToApproveDocuments);
 APIs.post("/transaction-history", checkToken, CreateTransactionHistory);
 APIs.post("/ApproveDocuments-NAV", checkToken, ApproveDocumentsNAV);
 APIs.post("/saveDocuments-NAV", checkToken, saveDocumentsNAV);
+APIs.post("/document-products-add", checkToken, addDocumentProducts);
 APIs.post("/document-products-edit", checkToken, EditDocumentProducts);
+APIs.post("/document-products-delete", checkToken, DeleteDocumentProducts);
 APIs.post("/forgot-password", ForgotPassword);
 
 APIs.get("/files-list", checkToken, listUploadedFiles);
