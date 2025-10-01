@@ -66,7 +66,6 @@ const EditDocumentProducts = async (req, res) => {
           if (v === null) {
             clean.quantity = null;
           } else if (typeof v === "number" && isFinite(v)) {
-            // ถ้าต้องการบังคับจำนวนเต็ม: ใช้ Number.isInteger(v)
             clean.quantity = v;
           } else {
             return { __error: `quantity must be a number or null`, it };

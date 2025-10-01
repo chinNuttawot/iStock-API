@@ -57,11 +57,11 @@ const getCardDetail = async (req, res) => {
         isDelete: false,
         details: [
           { label: "รหัสแบบ", value: item.variantCode ?? "-" },
-          { label: "หมายเหตุ", value: item.description ?? "" },
           {
             label: "จำนวนที่รับ",
             value: `${item.qtyReceived} / ${item.qtyShipped}`,
           },
+          { label: "หมายเหตุ", value: item.description ?? "" },
         ],
         picURL: item.picURL,
       }));

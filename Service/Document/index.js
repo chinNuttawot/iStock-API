@@ -351,8 +351,8 @@ const GetDocumentByDocNo = async (req, res) => {
       serialNo: item.serialNo,
       remark: item.remark || "",
       details: [
-        { label: "จำนวน", value: item.quantity },
         { label: "รหัสแบบ", value: item.model },
+        { label: "จำนวน", value: item.quantity },
         { label: "serial No.", value: item.serialNo },
         { label: "หมายเหตุ", value: item.remark || "-" },
       ],
@@ -512,8 +512,8 @@ const GetDocumentProductsByDocNo = async (req, res) => {
       uuid: item.uuid,
       picURL: item.picURL,
       details: [
-        { label: "จำนวน", value: item.quantity },
         { label: "รหัสแบบ", value: item.model },
+        { label: "จำนวน", value: item.quantity },
         { label: "serial No.", value: item.serialNo },
         { label: "หมายเหตุ", value: item.remark || "-" },
       ],

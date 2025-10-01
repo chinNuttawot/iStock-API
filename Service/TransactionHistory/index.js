@@ -80,8 +80,8 @@ function transformDocuments(rows = []) {
         uuid: item2.uuid,
         picURL: item2.picURL,
         details: [
-          { label: "จำนวน", value: item2.quantity },
           { label: "รหัสแบบ", value: item2.model },
+          { label: "จำนวน", value: item2.quantity },
           { label: "serial No.", value: item2.serialNo },
           { label: "หมายเหตุ", value: item2.remark || "-" },
         ],
