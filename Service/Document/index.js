@@ -26,7 +26,7 @@ function parseThaiDateToJSDate(ddmmyyyy_thai) {
 function formatJSDateToYMDLocal(d) {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).toString().padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
 
@@ -49,13 +49,7 @@ function buildOrderBy(sortBy = "createdAt", sortDir = "DESC") {
 
 /**
  * NORMALIZE_DATE_SQL(col):
- * รองรับคอลัมน์ที่เป็น nvarchar ทั้งกรณี AD/Persists เป็น datetime,
- * และกรณีเก็บเป็น 'พ.ศ.-MM-dd' เช่น '2568-09-05' (อาจมีเวลา)
- * ลอจิก:
- *   1) ถ้า TRY_CONVERT(date, col) ได้ → ใช้ทันที
- *   2) ถ้า TRY_CONVERT(date, LEFT(col,10)) ได้ → ใช้ทันที
- *   3) ไม่ได้ทั้งคู่ → ตีความซ้าย 10 ตัวเป็น 'yyyy-MM-dd'
- *      แยกปี/เดือน/วัน แล้ว DATEFROMPARTS(ปี - 543 ถ้า > 2200, เดือน, วัน)
+ * รองรับคอลัมน์ที่เป็น nvarchar ทั้งกรณี AD/datetime และกรณีเก็บเป็น 'พ.ศ.-MM-dd'
  */
 const NORMALIZE_DATE_SQL = (colExpr) => `
   CASE
@@ -169,7 +163,7 @@ const GetDocuments = async (req, res) => {
       }
     }
 
-    // ✅ stockOutDate = วันเดียว (normalize BE→AD) เทียบกับ CONVERT(date, @stockDateStr)
+    // ✅ stockOutDate = วันเดียว (normalize BE→AD)
     if (stockDateExactStr) {
       whereParts.push(
         `${NORMALIZE_DATE_SQL(
@@ -335,7 +329,9 @@ const GetDocumentByDocNo = async (req, res) => {
           dp.[model],
           dp.[quantity],
           dp.[serialNo],
-          dp.[remark]
+          dp.[remark],
+          dp.[picURL],
+          dp.[description]
         FROM [DocumentProducts iStock] dp
         WHERE dp.[docNo] = @docNo
         ORDER BY dp.[id] ASC
@@ -346,11 +342,18 @@ const GetDocumentByDocNo = async (req, res) => {
       docNo: item.docNo,
       menuType: getMenuType(header.menuId), // อิงจาก header
       menuId: header.menuId,
+      productCode: item.productCode,
       model: item.model,
       quantity: item.quantity,
       serialNo: item.serialNo,
       remark: item.remark || "",
+      description: item.description || "",
+      picURL: item.picURL || "",
       details: [
+        {
+          label: "ชื่อสินค้า",
+          value: (item.description || "").trim() || "ไม่มีชื่อสินค้า",
+        },
         { label: "รหัสแบบ", value: item.model },
         { label: "จำนวน", value: item.quantity },
         { label: "serial No.", value: item.serialNo },
@@ -401,7 +404,7 @@ const GetDocumentByDocNoForTransactionHistory = async (req, res) => {
           d.[status],
           d.[locationCodeTo],
           d.[binCodeTo],
-          d.[branchCode]             -- ✅ เพิ่ม branchCode
+          d.[branchCode]
         FROM [Documents iStock] d
         WHERE d.[docNo] = @docNo
       `);
@@ -417,14 +420,14 @@ const GetDocumentByDocNoForTransactionHistory = async (req, res) => {
       docNo: headerDb.docNo,
       menuId: headerDb.menuId,
       menuName: headerDb.menuName,
-      branchCode: headerDb.branchCode ?? "", // ✅ ส่งให้ชัด
-      stockOutDate: toThaiDate(headerDb.stockOutDate), // ✅ แปลงเป็น DD/MM/พ.ศ.
+      branchCode: headerDb.branchCode ?? "",
+      stockOutDate: toThaiDate(headerDb.stockOutDate),
       remark: headerDb.remark ?? "",
       locationCodeFrom: headerDb.locationCodeFrom ?? "",
       binCodeFrom: headerDb.binCodeFrom ?? "",
       locationCodeTo: headerDb.locationCodeTo ?? "",
       binCodeTo: headerDb.binCodeTo ?? "",
-      createdAt: headerDb.createdAt, // เก็บ ISO ไว้เผื่อหน้า detail ใช้
+      createdAt: headerDb.createdAt,
       createdBy: headerDb.createdBy ?? "",
       status: headerDb.status ?? "Open",
     };
@@ -441,21 +444,23 @@ const GetDocumentByDocNoForTransactionHistory = async (req, res) => {
           dp.[quantity],
           dp.[serialNo],
           dp.[remark],
-          dp.[picURL]
+          dp.[picURL],
+          dp.[description]
         FROM [DocumentProducts iStock] dp
         WHERE dp.[docNo] = @docNo
         ORDER BY dp.[id] ASC
       `);
 
-    // ✅ คืนรูปแบบ minimal ตรงสคีมธุรกรรม (ไม่มี details/menuType/id เทียม)
+    // ✅ minimal schema สำหรับประวัติธุรกรรม
     const products = (pRs.recordset || []).map((item) => ({
-      uuid: item.uuid ?? null, // ถ้ามีในตารางก็ส่งให้
-      productCode: item.productCode ?? "", // << จำเป็น
+      uuid: item.uuid ?? null,
+      productCode: item.productCode ?? "",
       model: item.model ?? "",
-      quantity: Number(item.quantity ?? 0), // บังคับ number
+      quantity: Number(item.quantity ?? 0),
       serialNo: item.serialNo ?? "",
       remark: item.remark ?? "",
       picURL: item.picURL ?? "",
+      description: item.description ?? "",
     }));
 
     return responseSuccess(res, "Get document successfully", {
@@ -492,7 +497,8 @@ const GetDocumentProductsByDocNo = async (req, res) => {
           dp.[serialNo],
           dp.[picURL],
           dp.[remark],
-          d.[menuId] -- join เพื่อเอามาแปลง menuType
+          dp.[description],
+          d.[menuId]
         FROM [DocumentProducts iStock] dp
         INNER JOIN [Documents iStock] d ON d.[docNo] = dp.[docNo]
         WHERE dp.[docNo] = @docNo AND d.[menuId] = @menuId
@@ -501,7 +507,7 @@ const GetDocumentProductsByDocNo = async (req, res) => {
 
     const recordset = (pRs.recordset || []).map((item, idx) => ({
       id: String(idx + 1),
-      docNo: item.productCode,
+      docNo: item.docNo,
       productCode: item.productCode,
       serialNo: item.serialNo,
       remark: item.remark,
@@ -511,7 +517,12 @@ const GetDocumentProductsByDocNo = async (req, res) => {
       model: item.model,
       uuid: item.uuid,
       picURL: item.picURL,
+      description: item.description || "",
       details: [
+        {
+          label: "ชื่อสินค้า",
+          value: (item.description || "").trim() || "ไม่มีชื่อสินค้า",
+        },
         { label: "รหัสแบบ", value: item.model },
         { label: "จำนวน", value: item.quantity },
         { label: "serial No.", value: item.serialNo },
@@ -567,8 +578,19 @@ const GetDocumentsByDocNos = async (req, res) => {
     const pReq = new sql.Request(pool);
     docNos.forEach((d, i) => pReq.input(`doc${i}`, sql.VarChar(50), d));
 
+    // ✅ ระบุคอลัมน์ชัด รวม description
     const pSql = `
-      SELECT *
+      SELECT
+        dp.[id],
+        dp.[uuid],
+        dp.[docNo],
+        dp.[productCode],
+        dp.[model],
+        dp.[quantity],
+        dp.[serialNo],
+        dp.[remark],
+        dp.[picURL],
+        dp.[description]
       FROM [DocumentProducts iStock] dp
       WHERE dp.[docNo] IN (${placeholders})
       ORDER BY CASE dp.[docNo] ${orderByCase} ELSE 999999 END, dp.[id] ASC
@@ -597,6 +619,9 @@ const GetDocumentsByDocNos = async (req, res) => {
         quantity: item.quantity,
         serialNo: item.serialNo,
         remarkProduct: item.remark || "",
+        productCode: item.productCode,
+        description: item.description || "",
+        picURL: item.picURL || "",
       };
     });
     return res.json(rows);

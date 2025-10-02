@@ -56,6 +56,7 @@ const getCardDetail = async (req, res) => {
         qtyShipped: item.qtyShipped,
         isDelete: false,
         details: [
+          { label: "ชื่อสินค้า", value: item.description ?? "ไม่มีชื่อสินค้า" },
           { label: "รหัสแบบ", value: item.variantCode ?? "-" },
           {
             label: "จำนวนที่รับ",

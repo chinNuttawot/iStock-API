@@ -17,6 +17,7 @@ const getItemVariant = async (req, res) => {
       value: item.variantCode,
       key: item.variantCode,
       picURL: item.picURL,
+      description: item.description || "ไม่มีชื่อสินค้า",
     }));
 
     return responseSuccess(res, "get Item Variant fetched", formatted);

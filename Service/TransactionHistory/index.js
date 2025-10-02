@@ -20,7 +20,7 @@ const dateLabelByMenuId = (menuId) => {
 /** จำกัดความยาวสตริง */
 const clamp = (s, n) => (s == null ? s : String(s).slice(0, n));
 
-/** parse 'DD/MM/YYYY' (พ.ศ./ค.ศ.) -> JS Date ที่เวลา 00:00:00 (ตามเขตเวลาเครื่องรัน) */
+/** parse 'DD/MM/YYYY' (พ.ศ./ค.ศ.) -> JS Date */
 function parseThaiDateOnly(input) {
   if (!input || typeof input !== "string" || !input.includes("/")) return null;
   const m = input.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -31,30 +31,20 @@ function parseThaiDateOnly(input) {
   let year = parseInt(yyyyRaw, 10);
   if (!day || !mon || !year) return null;
   if (year > 2400) year -= 543; // BE -> AD
-  // ใช้ local time ที่ 00:00:00 เพื่อไม่ให้ timezone พาเพี้ยน
   return new Date(year, mon - 1, day, 0, 0, 0, 0);
 }
 
-/** parse 'DD/MM/YYYY' (พ.ศ./ค.ศ.) | ISO | Date -> JS Date (ค.ศ.) */
+/** normalize input date (string, Date, ISO) */
 function normalizeInputDate(input) {
   if (!input) return null;
-
-  // Date instance
   if (input instanceof Date && !isNaN(input.getTime())) return input;
-
   if (typeof input === "string") {
-    // DD/MM/YYYY (ไทย)
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(input)) {
-      return parseThaiDateOnly(input);
-    }
-    // ISO 'YYYY-MM-DD' หรือ 'YYYY-MM-DDTHH:mm:ssZ'
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(input)) return parseThaiDateOnly(input);
     if (/^\d{4}-\d{2}-\d{2}/.test(input)) {
       const d = new Date(input);
       return isNaN(d.getTime()) ? null : d;
     }
   }
-
-  // อื่น ๆ: ลอง new Date
   const d = new Date(input);
   return isNaN(d.getTime()) ? null : d;
 }
@@ -79,7 +69,12 @@ function transformDocuments(rows = []) {
         model: item2.model,
         uuid: item2.uuid,
         picURL: item2.picURL,
+        description: item2.description || "", // ✅ เพิ่ม description
         details: [
+          {
+            label: "ชื่อสินค้า",
+            value: (item2.description || "").trim() || "ไม่มีชื่อสินค้า",
+          },
           { label: "รหัสแบบ", value: item2.model },
           { label: "จำนวน", value: item2.quantity },
           { label: "serial No.", value: item2.serialNo },
@@ -130,7 +125,7 @@ const CreateTransactionHistory = async (req, res) => {
       docNo,
       menuId,
       menuName,
-      stockOutDate, // รับได้ทั้ง DD/MM/YYYY (พ.ศ./ค.ศ.) หรือ ISO string/Date
+      stockOutDate,
       remark,
       locationCodeFrom,
       binCodeFrom,
@@ -139,13 +134,12 @@ const CreateTransactionHistory = async (req, res) => {
       branchCode,
       status,
       createdBy,
-      products = [], // จะถูก JSON.stringify เก็บในคอลัมน์ [product]
+      products = [],
     } = body;
 
     if (!docNo) return responseError(res, "docNo is required", 400);
     if (!branchCode) return responseError(res, "branchCode is required", 400);
 
-    // ✅ แปลงให้เป็น Date (ค.ศ.) เสมอ
     const stockOutDateJS = normalizeInputDate(stockOutDate);
     if (stockOutDate && !stockOutDateJS) {
       return responseError(
@@ -170,7 +164,6 @@ const CreateTransactionHistory = async (req, res) => {
       .input("docNo", sql.NVarChar(50), clamp(docNo, 50))
       .input("menuId", sql.Int, menuId ?? null)
       .input("menuName", sql.NVarChar(200), clamp(menuName, 200))
-      // ถ้าเก็บ “แค่วัน” แนะนำใช้ sql.Date; ถ้าอยากเก็บเวลาให้ใช้ DateTime2
       .input(
         "stockOutDate",
         stockOutDateJS ? sql.DateTime2 : sql.DateTime2,
@@ -208,19 +201,7 @@ const CreateTransactionHistory = async (req, res) => {
   }
 };
 
-/**
- * GET /api/transaction-history
- * Query params:
- *   - createdBy    (required)
- *   - docNo        (optional, partial)
- *   - branchCode   (optional)
- *   - status       (optional)
- *   - dateFrom     (optional, ISO; filter createdAt >= dateFrom)
- *   - dateTo       (optional, ISO;  filter createdAt <  dateTo)
- *   - stockOutDate (optional, DD/MM/YYYY พ.ศ./ค.ศ.; เทียบวันเดียวตามเวลาไทย)
- *   - sortBy       (optional: createdAt|docNo|stockOutDate; default createdAt)
- *   - sortDir      (optional: ASC|DESC; default DESC)
- */
+/** GET /api/transaction-history */
 const GetTransactionHistory = async (req, res) => {
   try {
     const {
@@ -230,7 +211,7 @@ const GetTransactionHistory = async (req, res) => {
       status,
       dateFrom,
       dateTo,
-      stockOutDate, // DD/MM/YYYY (ไทย/ค.ศ.)
+      stockOutDate,
       sortBy = "createdAt",
       sortDir = "DESC",
     } = req.query || {};
@@ -239,7 +220,6 @@ const GetTransactionHistory = async (req, res) => {
       return responseError(res, "createdBy is required", 400);
     }
 
-    // allow-list sort
     const sortCol = ["createdAt", "docNo", "stockOutDate"].includes(
       String(sortBy)
     )
@@ -248,7 +228,6 @@ const GetTransactionHistory = async (req, res) => {
     const sortDirection =
       String(sortDir).toUpperCase() === "ASC" ? "ASC" : "DESC";
 
-    // WHERE builder
     const whereParts = ["[createdBy] = @createdBy"];
     if (docNo) whereParts.push("UPPER([docNo]) LIKE UPPER(@docNo)");
     if (branchCode) whereParts.push("[branchCode] = @branchCode");
@@ -256,7 +235,6 @@ const GetTransactionHistory = async (req, res) => {
     if (dateFrom) whereParts.push("[createdAt] >= @dateFrom");
     if (dateTo) whereParts.push("[createdAt] <  @dateTo");
 
-    // ✅ เทียบ "วันเดียว" ของ stockOutDate ตามเวลาไทย (+07:00)
     if (stockOutDate) {
       whereParts.push(
         "CAST(SWITCHOFFSET([stockOutDate] AT TIME ZONE 'UTC', '+07:00') AS DATE) = DATEFROMPARTS(@y, @m, @d)"
@@ -265,7 +243,6 @@ const GetTransactionHistory = async (req, res) => {
 
     const whereSql = `WHERE ${whereParts.join(" AND ")}`;
 
-    // bind params
     const pool = await poolPromise;
     const request = pool
       .request()
@@ -285,7 +262,7 @@ const GetTransactionHistory = async (req, res) => {
     }
 
     if (stockOutDate) {
-      const d = parseThaiDateOnly(stockOutDate); // 00:00 (local)
+      const d = parseThaiDateOnly(stockOutDate);
       if (d) {
         request.input("y", sql.Int, d.getFullYear());
         request.input("m", sql.Int, d.getMonth() + 1);
@@ -317,7 +294,6 @@ const GetTransactionHistory = async (req, res) => {
 
     const result = await request.query(sqlQuery);
 
-    // parse product JSON ก่อนส่ง
     const rows = result.recordset.map((row) => {
       let parsedProduct = [];
       try {
