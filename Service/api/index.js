@@ -53,6 +53,7 @@ const { saveDocumentsNAV } = require("../saveDocumentsNAV");
 const { ForgotPassword } = require("../ForgotPassword");
 const { EditDocumentProducts } = require("../EditDocumentProducts");
 const { addDocumentProducts } = require("../AddDocumentProducts");
+const { deleteDocumentByDocNo } = require("../DeleteDocument");
 
 const APIs = express.Router();
 
@@ -105,5 +106,6 @@ APIs.post("/forgot-password", ForgotPassword);
 
 APIs.get("/files-list", checkToken, listUploadedFiles);
 APIs.delete("/files/:name", checkToken, deleteFile);
+APIs.delete("/documents/:docNo", checkToken, deleteDocumentByDocNo);
 
 module.exports = APIs;
