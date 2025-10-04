@@ -6,6 +6,7 @@ const {
   responseError,
 } = require("../../utils/responseHelper");
 const { getByUserNAV } = require("../NAV");
+const moment = require("moment");
 
 const Login = async (req, res) => {
   const { username, password } = req.body;
@@ -64,7 +65,7 @@ const Login = async (req, res) => {
           from: "NAV",
         });
       } catch (err) {
-        console.error("NAV auth error:", err?.message || err);
+        console.error("NAV auth error:", err?.message || err , moment().format("YYYY-DD-MM HH:mm:ss"));
         if (!res.headersSent) {
           return responseError(res, "User not found", 401);
         }
