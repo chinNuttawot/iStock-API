@@ -731,7 +731,9 @@ const SendToApproveDocuments = async (req, res) => {
 
   const placeholders = docNos.map((_, i) => `@doc${i}`).join(", ");
   const orderByCase = docNos.map((_, i) => `WHEN @doc${i} THEN ${i}`).join(" ");
-  const CURRENT_STATUS = "Open";
+
+  // ✅ รองรับทั้ง Open และ Rejected ให้ส่งเข้า Pending Approval ได้
+  const ALLOWED_CURRENT_STATUSES = ["Open", "Rejected"];
   const NEXT_STATUS = "Pending Approval";
 
   try {
@@ -740,16 +742,26 @@ const SendToApproveDocuments = async (req, res) => {
     await tx.begin();
     try {
       const reqUpdate = new sql.Request(tx);
+
       docNos.forEach((d, i) => reqUpdate.input(`doc${i}`, sql.VarChar(50), d));
-      reqUpdate.input("currentStatus", sql.VarChar(50), CURRENT_STATUS);
       reqUpdate.input("nextStatus", sql.VarChar(50), NEXT_STATUS);
       reqUpdate.input("user", sql.VarChar(50), user);
+
+      // bind สถานะที่อนุญาต (Open + Rejected)
+      ALLOWED_CURRENT_STATUSES.forEach((st, i) => {
+        reqUpdate.input(`currentStatus${i}`, sql.VarChar(50), st);
+      });
+
+      const statusPlaceholders = ALLOWED_CURRENT_STATUSES.map(
+        (_, i) => `@currentStatus${i}`
+      ).join(", ");
+
       const updateSql = `
         ;WITH Target AS (
           SELECT d.*
           FROM [Documents iStock] d
           WHERE d.[docNo] IN (${placeholders})
-            AND d.[status] = @currentStatus
+            AND d.[status] IN (${statusPlaceholders})
             AND d.[createdBy] = @user
         )
         UPDATE Target
@@ -758,9 +770,11 @@ const SendToApproveDocuments = async (req, res) => {
                deleted.[status]  AS oldStatus,
                inserted.[status] AS newStatus;
       `;
+
       const uRs = await reqUpdate.query(updateSql);
       const updated = uRs.recordset || [];
       const updatedSet = new Set(updated.map((r) => r.docNo));
+
       const reqOrder = new sql.Request(tx);
       docNos.forEach((d, i) => reqOrder.input(`doc${i}`, sql.VarChar(50), d));
       const orderedSql = `
@@ -772,6 +786,8 @@ const SendToApproveDocuments = async (req, res) => {
       const orderedRs = await reqOrder.query(orderedSql);
       const currentStatuses = orderedRs.recordset || [];
       const currentMap = new Map(currentStatuses.map((r) => [r.docNo, r]));
+
+      // เผื่ออยากใช้ skipped ไปลอกมาบอกหน้าบ้านต่อได้ในอนาคต
       const skipped = docNos
         .filter((d) => !updatedSet.has(d))
         .map((d) => {
@@ -787,7 +803,11 @@ const SendToApproveDocuments = async (req, res) => {
         });
 
       await tx.commit();
-      return responseSuccess(res, `Updated status to ${NEXT_STATUS}`);
+
+      return responseSuccess(res, `Updated status to ${NEXT_STATUS}`, {
+        updated,
+        skipped,
+      });
     } catch (err) {
       await tx.rollback();
       return responseError(res, `Failed to update: ${err.message}`, 500);
