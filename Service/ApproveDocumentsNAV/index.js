@@ -42,7 +42,7 @@ const ApproveDocumentsNAV = async (req, res) => {
         dp.model,
         dp.quantity,
         dp.serialNo,
-        dp.branchCode, 
+        dp.productCode, 
         dp.remark           AS remarkProduct
       FROM [FAC-DEV11].[dbo].[Documents iStock] d
       INNER JOIN DocNos dn
@@ -78,7 +78,7 @@ const ApproveDocumentsNAV = async (req, res) => {
       o.menuID = Number(o.menuID);
       o.docLineNo = 0;
       o.quantity = Number(o.quantity);
-      o.itemNo = o.branchCode || "";
+      o.itemNo = o.productCode || "";
       o.status = "Open";
       if ([0, 1, 3].includes(o.menuID)) {
         const fromLoc = o.locationCodeFrom || "";
