@@ -35,6 +35,7 @@ const saveDocumentsNAV = async (req, res) => {
       const params = {
         docNo: docNo,
         docLineNo: Number(p.lineNo),
+        itemNo: p.productCode || "",
         menuID: 0,
         menuName: "Scan-Receive",
         stockOutDate: getTodayISO(),
