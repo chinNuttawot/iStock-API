@@ -141,10 +141,7 @@ app.use(errorHandler);
 
 // ======== Start server with extended timeouts ========
 const server = app.listen(port, "0.0.0.0", () => {
-  console.log(`✅ Server listening at http://localhost:${port}`);
-  console.log(
-    `   Static files at /files -> ${path.resolve(config.UPLOAD_DIR)}`
-  );
+  // Server started
 });
 
 // Timeouts สำหรับงานอัปโหลด/ดาวน์โหลดนาน ๆ (Node v18+)

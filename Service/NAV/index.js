@@ -160,9 +160,8 @@ const sendIStockStaging = async (data) => {
   if (!NAV_URL_ISTOCK_STAGIONG_WS) {
     return false;
   }
-  let res;
   try {
-    res = await axios.post(`${NAV_URL_ISTOCK_STAGIONG_WS}`, data, {
+    await axios.post(`${NAV_URL_ISTOCK_STAGIONG_WS}`, data, {
       headers: headersNAV,
       timeout: 10000000,
       httpsAgent,
@@ -239,10 +238,6 @@ async function cleanupOldDailyKeys() {
       if (fileDate.isBefore(cutoff)) {
         try {
           await storage.removeItem(key);
-          // eslint-disable-next-line no-console
-          console.log(
-            `[CLEANUP] removed key "${key}" (older than ${RETENTION_DAYS} days)`
-          );
         } catch (e) {
           console.warn(
             `[CLEANUP] failed to remove key "${key}":`,
@@ -258,14 +253,10 @@ async function cleanupOldDailyKeys() {
 
 // งานหลัก (ดึง + เซฟ + ล้างของเก่า)
 async function runJob() {
-  console.log(`[NAV] Start job @ ${dayjs().format("YYYY-MM-DD HH:mm:ss")}`);
   const meta = { url: NAV_URL, user: NAV_USER };
   try {
     const data = await getUserNAV();
     await saveNAVResult(data, meta);
-    console.log(
-      `[NAV] Saved ${Array.isArray(data) ? data.length : 1} records.`
-    );
   } catch (err) {
     console.error("[NAV] Job failed:", err?.message || err);
   } finally {
@@ -282,7 +273,6 @@ function scheduleJob() {
     },
     { timezone: TIMEZONE }
   );
-  console.log(`Cron scheduled: "${CRON_EXPR}" in ${TIMEZONE}`);
 }
 
 // ====== BOOTSTRAP ======

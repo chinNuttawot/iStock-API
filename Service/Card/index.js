@@ -63,7 +63,15 @@ const normalizeDate = (d) => {
 
 const getCardList = async (req, res) => {
   try {
-    let { menuId, branchCode, status, stockOutDate, docNo } = req.query;
+    let {
+      menuId,
+      branchCode,
+      status,
+      stockOutDate,
+      docNo,
+      stockDateFromTH,
+      stockDateToTH,
+    } = req.query;
     const isApprover = req.query.isApprover === "true" ?? false;
     menuId = Number(menuId);
     if (isNaN(menuId)) {
@@ -131,6 +139,19 @@ const getCardList = async (req, res) => {
       _branchCode = [_branchCode, `contains(docNo, ${odataQuote(docNo)})`]
         .filter(Boolean)
         .join(" and ");
+    }
+
+    if (stockDateFromTH && stockDateToTH) {
+      const fromDate = normalizeDate(stockDateFromTH);
+      const toDate = normalizeDate(stockDateToTH);
+      if (fromDate && toDate) {
+        _branchCode = [
+          _branchCode,
+          `shipmentDate ge ${fromDate} and shipmentDate le ${toDate}`,
+        ]
+          .filter(Boolean)
+          .join(" and ");
+      }
     }
     const navData = await getCardListNAV({ menuId, branchCode: _branchCode });
     const formatted = navData.map((item, idx) => ({

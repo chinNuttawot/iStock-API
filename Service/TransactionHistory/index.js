@@ -117,7 +117,7 @@ function transformDocuments(rows = []) {
 
 /** ================= Controllers ================= */
 
-/** POST /api/transaction-history : create 1 record */
+/** POST /api/transaction-history : create or update by docNo */
 const CreateTransactionHistory = async (req, res) => {
   try {
     const body = req.body || {};
@@ -159,6 +159,18 @@ const CreateTransactionHistory = async (req, res) => {
     }
 
     const pool = await poolPromise;
+
+    // UPDATE: อัพเดท status ของ record เดิม
+    await pool
+      .request()
+      .input("docNo", sql.NVarChar(50), clamp(docNo, 50))
+      .input("status", sql.NVarChar(50), clamp(status, 50)).query(`
+          UPDATE [TransactionHistory iStock]
+          SET status = @status
+          WHERE docNo = @docNo
+        `);
+
+    // INSERT: สร้าง record ใหม่เสมอ
     await pool
       .request()
       .input("docNo", sql.NVarChar(50), clamp(docNo, 50))

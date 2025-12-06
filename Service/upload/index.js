@@ -18,7 +18,7 @@ const ALLOW_FILE = Array.isArray(config.ALLOWED_FILE_MIME)
 
 /** util: log เฉพาะตอนเปิด DEBUG_UPLOAD=1 */
 function dlog(...args) {
-  if (DEBUG) console.log("[upload]", ...args);
+  // Debug logging disabled
 }
 
 /** ตรวจ mime และส่ง error ถ้าไม่ผ่าน */

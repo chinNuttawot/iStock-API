@@ -4,6 +4,10 @@ const {
   responseError,
 } = require("../../utils/responseHelper");
 const { sendIStockStaging } = require("../NAV");
+const {
+  formatToISO,
+  getTodayISO,
+} = require("../../utils/dateFormatter");
 
 const ApproveDocumentsNAV = async (req, res) => {
   try {
@@ -76,10 +80,12 @@ const ApproveDocumentsNAV = async (req, res) => {
     const rows = (rs.recordset || []).map((r) => {
       const o = replaceNulls(r);
       o.menuID = Number(o.menuID);
-      o.docLineNo = 0;
+      o.docLineNo = Number(o.docLineNo);
       o.quantity = Number(o.quantity);
       o.itemNo = o.productCode || "";
       o.status = "Open";
+      o.stockOutDate = getTodayISO();
+      o.createdAt = formatToISO(new Date());
       if ([0, 1, 3].includes(o.menuID)) {
         const fromLoc = o.locationCodeFrom || "";
         const fromBin = o.binCodeFrom || "";
@@ -88,6 +94,8 @@ const ApproveDocumentsNAV = async (req, res) => {
         o.locationCodeFrom = "";
         o.binCodeFrom = "";
       }
+      // ลบฟิลด์ productCode ออกเพราะ NAV API ไม่ต้องการ (ใช้แค่ itemNo)
+      delete o.productCode;
       return o;
     });
 

@@ -66,7 +66,6 @@ const sqlConfig = {
 const poolPromise = new sql.ConnectionPool(sqlConfig)
   .connect()
   .then((pool) => {
-    console.log("✅ Connected to SQL Server");
     return pool;
   })
   .catch((err) => {
